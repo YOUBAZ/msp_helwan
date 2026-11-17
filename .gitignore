@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+
+# Environment files (keep the examples)
+.env
+.env.*
+!.env.example
+
+# Runtime data written by the backend
+backend/data/
+
+# Logs & OS / editor junk
+*.log
+.DS_Store
+.idea/

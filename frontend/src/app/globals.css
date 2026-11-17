@@ -1,0 +1,8 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Matches the original site: Tailwind defaults with the system sans stack. */
+body {
+  background: #fff;
+  color: #0f172a;
+}
