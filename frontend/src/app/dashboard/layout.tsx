@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
+  Images,
   LogOut,
   Mail,
   MessageSquare,
@@ -22,6 +23,7 @@ const NAV = [
   { href: "/dashboard/members", label: "Members", Icon: Users, perm: "members.view" },
   { href: "/dashboard/roles", label: "Roles", Icon: ShieldCheck },
   { href: "/dashboard/hierarchy", label: "Team Hierarchy", Icon: Network, perm: "seasons.manage" },
+  { href: "/dashboard/media", label: "Media", Icon: Images, perm: "media.manage" },
   { href: "/dashboard/profile", label: "My Profile", Icon: UserCircle },
 ];
 

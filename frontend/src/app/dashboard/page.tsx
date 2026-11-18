@@ -11,6 +11,7 @@ const SHORTCUTS = [
   { href: "/dashboard/members", label: "View members", perm: "members.view" },
   { href: "/dashboard/roles", label: "Create and edit roles", perm: "roles.manage" },
   { href: "/dashboard/hierarchy", label: "Build the season's team hierarchy", perm: "seasons.manage" },
+  { href: "/dashboard/media", label: "Manage Media albums", perm: "media.manage" },
   { href: "/dashboard/subscribers", label: "Newsletter subscribers", perm: "subscribers.view" },
   { href: "/dashboard/profile", label: "Update your name or password" },
 ];
