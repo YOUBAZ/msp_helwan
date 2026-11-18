@@ -7,6 +7,7 @@ import {
   LogOut,
   Mail,
   MessageSquare,
+  Network,
   ShieldCheck,
   UserCircle,
   Users,
@@ -20,6 +21,7 @@ const NAV = [
   { href: "/dashboard/subscribers", label: "Subscribers", Icon: Mail, perm: "subscribers.view" },
   { href: "/dashboard/members", label: "Members", Icon: Users, perm: "members.view" },
   { href: "/dashboard/roles", label: "Roles", Icon: ShieldCheck },
+  { href: "/dashboard/hierarchy", label: "Team Hierarchy", Icon: Network, perm: "seasons.manage" },
   { href: "/dashboard/profile", label: "My Profile", Icon: UserCircle },
 ];
 

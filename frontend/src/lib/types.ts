@@ -63,3 +63,32 @@ export type ContactMessage = {
 };
 
 export type Subscriber = { id: string; email: string; createdAt: string };
+
+export type Season = {
+  id: string;
+  number: number;
+  name: string;
+  status: "draft" | "current" | "archived";
+  publishedAt: string | null;
+};
+
+export type HierarchyMember = {
+  id: string;
+  userId: string | null;
+  name: string;
+  /** API-relative photo path (account holders). */
+  avatarUrl: string | null;
+  /** Site-relative photo path (people from before accounts existed). */
+  imageUrl: string | null;
+  linkedinUrl: string | null;
+};
+
+export type HierarchyPosition = {
+  id: string;
+  parentId: string | null;
+  title: string;
+  sortOrder: number;
+  members: HierarchyMember[];
+};
+
+export type HierarchyTree = { season: Season; positions: HierarchyPosition[] };

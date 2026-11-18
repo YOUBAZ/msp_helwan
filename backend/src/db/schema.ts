@@ -118,3 +118,45 @@ export const subscribers = pgTable('subscribers', {
   email: text('email').notNull().unique(),
   createdAt: createdAt(),
 });
+
+export const seasons = pgTable('seasons', {
+  id: id(),
+  number: integer('number').notNull().unique(),
+  name: text('name').notNull(),
+  /** draft: hidden while being built · current: shown by default · archived: read-only history */
+  status: text('status')
+    .$type<'draft' | 'current' | 'archived'>()
+    .notNull()
+    .default('draft'),
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+/** A position in a season's hierarchy (tree via parentId). */
+export const hierarchyPositions = pgTable('hierarchy_positions', {
+  id: id(),
+  seasonId: uuid('season_id')
+    .notNull()
+    .references(() => seasons.id, { onDelete: 'cascade' }),
+  parentId: uuid('parent_id'),
+  title: text('title').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: createdAt(),
+});
+
+/**
+ * A person holding a position. New entries must be linked to an account
+ * (userId). legacy* fields exist only for seasons from before accounts.
+ */
+export const hierarchyMembers = pgTable('hierarchy_members', {
+  id: id(),
+  positionId: uuid('position_id')
+    .notNull()
+    .references(() => hierarchyPositions.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  legacyName: text('legacy_name'),
+  legacyImage: text('legacy_image'),
+  legacyLinkedin: text('legacy_linkedin'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: createdAt(),
+});

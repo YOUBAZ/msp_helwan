@@ -484,4 +484,200 @@ describe('MSP Helwan API (e2e)', () => {
       );
     });
   });
+
+  describe('team hierarchy (seasons)', () => {
+    type Pos = {
+      id: string;
+      parentId: string | null;
+      title: string;
+      members: {
+        id: string;
+        name: string;
+        userId: string | null;
+        imageUrl: string | null;
+      }[];
+    };
+    type Tree = {
+      season: { id: string; number: number; status: string };
+      positions: Pos[];
+    };
+    const admin = (path: string) => `/api/admin${path}`;
+
+    it('ships Season 26 as a read-only archive matching the original page', async () => {
+      const list = await http().get('/api/seasons').expect(200);
+      const body = list.body as {
+        seasons: { number: number; status: string }[];
+        defaultNumber: number;
+      };
+      expect(body.seasons).toEqual([
+        expect.objectContaining({ number: 26, status: 'archived' }),
+      ]);
+      expect(body.defaultNumber).toBe(26);
+      const t = (await http().get('/api/seasons/26/hierarchy').expect(200))
+        .body as Tree;
+      expect(t.positions.map((p) => p.title).sort()).toEqual([
+        'General Vice President',
+        'Non-Technical Director',
+        'President',
+        'Technical Director',
+        'Vice President Non-Technical',
+        'Vice President Technical',
+      ]);
+      const gvp = t.positions.find(
+        (p) => p.title === 'General Vice President',
+      )!;
+      expect(gvp.members.map((m) => m.name)).toEqual([
+        'Ahmed Essam',
+        'Seif Eldeen',
+      ]);
+      expect(t.positions[0].members[0]).toMatchObject({
+        name: 'Youssif Saad',
+        imageUrl: '/images/team/youssef.jpeg',
+        userId: null,
+      });
+      // archived seasons can't be edited
+      await http()
+        .post(admin(`/seasons/${t.season.id}/positions`))
+        .set(bearer(president))
+        .send({ title: 'Extra' })
+        .expect(400);
+    });
+
+    it('lets only people with the permission build hierarchies', async () => {
+      const m = await login('member@test.dev', 'password123');
+      await http().get(admin('/seasons')).set(bearer(m)).expect(403);
+      await http()
+        .post(admin('/seasons'))
+        .set(bearer(m))
+        .send({ number: 99 })
+        .expect(403);
+    });
+
+    it('builds Season 27 as a hidden draft, only with real accounts, then publishes it', async () => {
+      const s26 = (await http().get('/api/seasons/26/hierarchy')).body as Tree;
+      const created = await http()
+        .post(admin('/seasons'))
+        .set(bearer(president))
+        .send({ number: 27, copyFromSeasonId: s26.season.id })
+        .expect(201);
+      const s27 = created.body as { id: string; status: string };
+      expect(s27.status).toBe('draft');
+      await http()
+        .post(admin('/seasons'))
+        .set(bearer(president))
+        .send({ number: 27 })
+        .expect(409);
+
+      // structure copied, people not
+      let t = (
+        await http()
+          .get(admin(`/seasons/${s27.id}/hierarchy`))
+          .set(bearer(president))
+          .expect(200)
+      ).body as Tree;
+      expect(t.positions).toHaveLength(6);
+      expect(t.positions.every((p) => p.members.length === 0)).toBe(true);
+      // drafts are not public
+      await http().get('/api/seasons/27/hierarchy').expect(404);
+
+      const top = t.positions.find((p) => !p.parentId)!;
+      const meId = (await me(president)).id;
+      // constraint: only real, active accounts
+      await http()
+        .post(admin(`/positions/${top.id}/members`))
+        .set(bearer(president))
+        .send({ userId: '11111111-1111-4111-8111-111111111111' })
+        .expect(400);
+      const disabled = (
+        (await http().get('/api/members').set(bearer(president))).body as {
+          id: string;
+          status: string;
+        }[]
+      ).find((x) => x.status === 'disabled')!;
+      await http()
+        .post(admin(`/positions/${top.id}/members`))
+        .set(bearer(president))
+        .send({ userId: disabled.id })
+        .expect(400);
+      await http()
+        .post(admin(`/positions/${top.id}/members`))
+        .set(bearer(president))
+        .send({ userId: meId })
+        .expect(204);
+      await http()
+        .post(admin(`/positions/${top.id}/members`))
+        .set(bearer(president))
+        .send({ userId: meId })
+        .expect(409);
+
+      // add a new sub-position, rename, reorder, delete a branch
+      const extra = (
+        await http()
+          .post(admin(`/seasons/${s27.id}/positions`))
+          .set(bearer(president))
+          .send({ title: 'Head of Media', parentId: top.id })
+          .expect(201)
+      ).body as { id: string };
+      await http()
+        .patch(admin(`/positions/${extra.id}`))
+        .set(bearer(president))
+        .send({ title: 'Media Head' })
+        .expect(204);
+      await http()
+        .post(admin(`/positions/${extra.id}/move`))
+        .set(bearer(president))
+        .send({ direction: 'up' })
+        .expect(204);
+      t = (
+        await http()
+          .get(admin(`/seasons/${s27.id}/hierarchy`))
+          .set(bearer(president))
+      ).body as Tree;
+      const kids = t.positions
+        .filter((p) => p.parentId === top.id)
+        .map((p) => p.title);
+      expect(kids).toEqual(['Media Head', 'General Vice President']);
+      const gvp = t.positions.find(
+        (p) => p.title === 'General Vice President',
+      )!;
+      await http()
+        .delete(admin(`/positions/${gvp.id}`))
+        .set(bearer(president))
+        .expect(204);
+      t = (
+        await http()
+          .get(admin(`/seasons/${s27.id}/hierarchy`))
+          .set(bearer(president))
+      ).body as Tree;
+      expect(t.positions.map((p) => p.title).sort()).toEqual([
+        'Media Head',
+        'President',
+      ]);
+
+      // publish: 27 becomes the default, 26 stays as history
+      await http()
+        .post(admin(`/seasons/${s27.id}/publish`))
+        .set(bearer(president))
+        .expect(204);
+      const list = (await http().get('/api/seasons')).body as {
+        seasons: { number: number; status: string }[];
+        defaultNumber: number;
+      };
+      expect(list.defaultNumber).toBe(27);
+      expect(list.seasons.map((x) => `${x.number}:${x.status}`)).toEqual([
+        '27:current',
+        '26:archived',
+      ]);
+      const pub = (await http().get('/api/seasons/27/hierarchy').expect(200))
+        .body as Tree;
+      expect(pub.positions.find((p) => !p.parentId)!.members[0]).toMatchObject({
+        userId: meId,
+        imageUrl: null,
+      });
+      await http()
+        .delete(admin(`/seasons/${s27.id}`))
+        .set(bearer(president))
+        .expect(400);
+    });
+  });
 });

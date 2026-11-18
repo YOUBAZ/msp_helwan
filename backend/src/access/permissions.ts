@@ -17,6 +17,11 @@ export const PERMISSIONS = [
     group: 'Roles',
     label: 'Create, edit and delete roles, and assign people to them',
   },
+  {
+    key: 'seasons.manage',
+    group: 'Team hierarchy',
+    label: "Build and publish each season's team hierarchy (Our Team page)",
+  },
   { key: 'messages.view', group: 'Inbox', label: 'Read contact-form messages' },
   {
     key: 'messages.delete',

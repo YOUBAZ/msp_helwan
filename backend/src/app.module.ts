@@ -6,6 +6,7 @@ import { AccessModule } from './access/access.module';
 import { ContactModule } from './contact/contact.module';
 import { DbModule } from './db/db.module';
 import { HealthController } from './health/health.controller';
+import { HierarchyModule } from './hierarchy/hierarchy.module';
 import { InboxModule } from './inbox/inbox.module';
 import { MailModule } from './mail/mail.module';
 import { NewsletterModule } from './newsletter/newsletter.module';
@@ -24,6 +25,7 @@ import { NewsletterModule } from './newsletter/newsletter.module';
     ContactModule,
     NewsletterModule,
     InboxModule,
+    HierarchyModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

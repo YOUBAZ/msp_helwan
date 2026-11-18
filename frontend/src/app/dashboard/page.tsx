@@ -10,6 +10,7 @@ const SHORTCUTS = [
   { href: "/dashboard/members", label: "Invite and manage members", perm: "members.invite" },
   { href: "/dashboard/members", label: "View members", perm: "members.view" },
   { href: "/dashboard/roles", label: "Create and edit roles", perm: "roles.manage" },
+  { href: "/dashboard/hierarchy", label: "Build the season's team hierarchy", perm: "seasons.manage" },
   { href: "/dashboard/subscribers", label: "Newsletter subscribers", perm: "subscribers.view" },
   { href: "/dashboard/profile", label: "Update your name or password" },
 ];
