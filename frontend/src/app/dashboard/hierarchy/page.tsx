@@ -11,10 +11,11 @@ import {
   Plus,
   Rocket,
   Trash2,
-  UserPlus,
   X,
 } from "lucide-react";
 import Avatar from "@/components/dashboard/Avatar";
+import PersonPicker, { type PickablePerson } from "@/components/dashboard/PersonPicker";
+import { Linkedin } from "@/components/BrandIcons";
 import {
   Badge,
   Button,
@@ -30,7 +31,7 @@ import { useAuth } from "@/lib/auth";
 import { childrenByParent } from "@/lib/hierarchy";
 import type { HierarchyPosition, HierarchyTree, Season } from "@/lib/types";
 
-type Person = { id: string; name: string; email: string };
+type Person = PickablePerson;
 
 const statusTone = { draft: "slate", current: "green", archived: "blue" } as const;
 const statusLabel = { draft: "Draft (hidden)", current: "Current (public)", archived: "Archived" };
@@ -311,7 +312,6 @@ function PositionEditor({
   onRename: (p: HierarchyPosition) => void;
 }) {
   const { call } = useAuth();
-  const [pick, setPick] = useState("");
   const kids = kidsOf(position.id);
   const taken = new Set(position.members.map((m) => m.userId));
   const available = people.filter((p) => !taken.has(p.id));
@@ -360,6 +360,17 @@ function PositionEditor({
             <div key={m.id} className="flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-xl bg-slate-50 border border-slate-200">
               <Avatar name={m.name} url={m.avatarUrl} />
               <span className="text-sm font-bold text-slate-800 pr-1">{m.name}</span>
+              {m.linkedinUrl && (
+                <a
+                  href={m.linkedinUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`${m.name} on LinkedIn`}
+                  className="shrink-0"
+                >
+                  <Linkedin size={16} fill="currentColor" className="text-white bg-blue-700 rounded-sm p-0.5" />
+                </a>
+              )}
               {!m.userId && <Badge tone="slate">No account</Badge>}
               {!readOnly && position.members.length > 1 && (
                 <>
@@ -385,31 +396,13 @@ function PositionEditor({
         </div>
 
         {!readOnly && (
-          <form
-            className="flex flex-col sm:flex-row gap-2 mt-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!pick) return;
-              void act(() => post(`/admin/positions/${position.id}/members`, { userId: pick })).then(() => setPick(""));
-            }}
-          >
-            <select
-              aria-label={`Add a person to ${position.title}`}
-              value={pick}
-              onChange={(e) => setPick(e.target.value)}
-              className={`${inputCls} py-2.5 sm:max-w-sm`}
-            >
-              <option value="">Choose a member with an account…</option>
-              {available.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.email})
-                </option>
-              ))}
-            </select>
-            <Button type="submit" variant="ghost" disabled={!pick}>
-              <UserPlus size={14} /> Add
-            </Button>
-          </form>
+          <PersonPicker
+            people={available}
+            label={`Add a person to ${position.title}`}
+            onPick={(userId) =>
+              void act(() => post(`/admin/positions/${position.id}/members`, { userId }))
+            }
+          />
         )}
       </Card>
 

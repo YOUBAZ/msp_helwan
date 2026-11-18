@@ -145,12 +145,64 @@ export class HierarchyService {
   }
 
   /** Active accounts the President can place in the hierarchy. */
-  people() {
-    return this.db
-      .select({ id: users.id, name: users.name, email: users.email })
+  async people() {
+    const rows = await this.db
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        avatarVersion: users.avatarVersion,
+        linkedinUrl: users.linkedinUrl,
+      })
       .from(users)
       .where(eq(users.status, 'active'))
       .orderBy(asc(users.name));
+    return rows.map(({ avatarVersion, ...u }) => ({
+      ...u,
+      avatarUrl: avatarVersion
+        ? `/users/${u.id}/avatar?v=${avatarVersion}`
+        : null,
+    }));
+  }
+
+  /**
+   * Public profile of someone shown on the Our Team page. Only people placed in
+   * a published season are visible, and only non-private fields are returned
+   * (no email, phone, birthday or gender).
+   */
+  async publicProfile(userId: string) {
+    const positions = await this.db
+      .select({
+        seasonNumber: seasons.number,
+        seasonName: seasons.name,
+        seasonStatus: seasons.status,
+        title: hierarchyPositions.title,
+      })
+      .from(hierarchyMembers)
+      .innerJoin(
+        hierarchyPositions,
+        eq(hierarchyPositions.id, hierarchyMembers.positionId),
+      )
+      .innerJoin(seasons, eq(seasons.id, hierarchyPositions.seasonId))
+      .where(
+        and(eq(hierarchyMembers.userId, userId), ne(seasons.status, 'draft')),
+      )
+      .orderBy(desc(seasons.number), asc(hierarchyPositions.title));
+    const [u] = positions.length
+      ? await this.db.select().from(users).where(eq(users.id, userId))
+      : [];
+    if (!u) throw new NotFoundException('Profile not found.');
+    return {
+      id: u.id,
+      name: u.name,
+      avatarUrl: u.avatarVersion
+        ? `/users/${u.id}/avatar?v=${u.avatarVersion}`
+        : null,
+      linkedinUrl: u.linkedinUrl,
+      facebookUrl: u.facebookUrl,
+      portfolioUrl: u.portfolioUrl,
+      positions,
+    };
   }
 
   // ---------- Seasons ----------

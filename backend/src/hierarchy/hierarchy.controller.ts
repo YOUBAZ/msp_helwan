@@ -37,6 +37,17 @@ export class PublicSeasonsController {
   }
 }
 
+/** Public profiles of people shown on the Our Team page. */
+@Controller('people')
+export class PublicPeopleController {
+  constructor(private readonly h: HierarchyService) {}
+
+  @Get(':id')
+  profile(@Param('id', ParseUUIDPipe) id: string) {
+    return this.h.publicProfile(id);
+  }
+}
+
 /** Building hierarchies. Requires the "seasons.manage" permission. */
 @Controller('admin')
 @Auth('seasons.manage')

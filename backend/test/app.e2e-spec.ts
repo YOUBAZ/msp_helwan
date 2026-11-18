@@ -582,6 +582,33 @@ describe('MSP Helwan API (e2e)', () => {
 
       const top = t.positions.find((p) => !p.parentId)!;
       const meId = (await me(president)).id;
+      const people = (
+        await http()
+          .get(admin('/seasons/people'))
+          .set(bearer(president))
+          .expect(200)
+      ).body as {
+        id: string;
+        name: string;
+        avatarUrl: string | null;
+        linkedinUrl: string | null;
+      }[];
+      const mine = people.find((x) => x.id === meId)!;
+      expect(typeof mine.name).toBe('string');
+      expect(mine.avatarUrl).toBeNull();
+      expect(mine.linkedinUrl).toBeNull();
+      const allMembers = (
+        await http().get('/api/members').set(bearer(president))
+      ).body as {
+        id: string;
+        status: string;
+      }[];
+      const disabledIds = allMembers
+        .filter((x) => x.status === 'disabled')
+        .map((x) => x.id);
+      expect(disabledIds.length).toBeGreaterThan(0);
+      // disabled accounts are never offered in the picker
+      expect(people.some((x) => disabledIds.includes(x.id))).toBe(false);
       // constraint: only real, active accounts
       await http()
         .post(admin(`/positions/${top.id}/members`))
@@ -653,6 +680,9 @@ describe('MSP Helwan API (e2e)', () => {
         'Media Head',
         'President',
       ]);
+
+      // not on a published season yet -> no public profile
+      await http().get(`/api/people/${meId}`).expect(404);
 
       // publish: 27 becomes the default, 26 stays as history
       await http()
