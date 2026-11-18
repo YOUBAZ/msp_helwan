@@ -20,7 +20,7 @@ type Me = {
   profile: Record<string, unknown> & { complete: boolean };
 };
 
-describe('MSP Helwan API (e2e)', () => {
+describe('MSP Tech Club API (e2e)', () => {
   let app: INestApplication<App>;
   const http = () => request(app.getHttpServer());
   const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });

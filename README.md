@@ -1,6 +1,6 @@
 # msp_helwan
 
-Rebuild of https://msp-helwan-university.web.app — **Next.js** frontend + **NestJS** API.
+Website and member system of **MSP Tech Club - Capital University**: a **Next.js** frontend + **NestJS** API (originally rebuilt from https://msp-helwan-university.web.app).
 
 | Folder | What | Port |
 | --- | --- | --- |

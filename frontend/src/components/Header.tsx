@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowRight, Menu, X } from "lucide-react";
-import { navLinks } from "@/data/site";
+import { navLinks, site } from "@/data/site";
 import { readToken } from "@/lib/auth";
 
 export default function Header() {
@@ -39,17 +39,17 @@ export default function Header() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/images/logo.jpeg"
-                alt="MSP Helwan Logo"
+                alt={`${site.fullName} logo`}
                 className="h-10 w-10 rounded-xl object-cover transform group-hover:rotate-12 transition-transform shadow-md"
               />
               <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-orange-600 rounded-full border-2 border-white" />
             </div>
             <div className="flex flex-col">
               <span className="text-xl font-black text-blue-900 tracking-tighter leading-none uppercase">
-                MSP Helwan
+                {site.name}
               </span>
               <span className="text-[10px] font-bold text-orange-600 tracking-[0.2em] uppercase">
-                Tech Club
+                {site.university}
               </span>
             </div>
           </Link>

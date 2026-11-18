@@ -14,10 +14,10 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
           <div className="space-y-6">
             <h3 className="text-3xl font-black text-white tracking-tighter italic">
-              MSP <span className="text-orange-600">HELWAN</span>
+              MSP <span className="text-orange-600">TECH CLUB</span>
             </h3>
             <p className="text-sm leading-relaxed opacity-70">
-              Microsoft Student Partners at Helwan University. A community dedicated to
+              Microsoft Student Partners at Capital University. A community dedicated to
               empowering students through technology, innovation, and leadership.
             </p>
             <div className="flex gap-4">
@@ -66,7 +66,7 @@ export default function Footer() {
         </div>
 
         <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">
-          <p>© {year} MSP Helwan Squad. All Rights Reserved.</p>
+          <p>© {year} MSP Tech Club - Capital University. All Rights Reserved.</p>
           <div className="flex gap-6">
             <a href="#" className="hover:text-white transition-colors">
               Privacy Policy

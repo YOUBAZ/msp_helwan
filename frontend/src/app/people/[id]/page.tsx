@@ -105,7 +105,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
 
             <div className="w-full mt-10 text-left">
               <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">
-                MSP Helwan positions
+                MSP Tech Club positions
               </h2>
               <ul className="space-y-3">
                 {p.positions.map((pos) => (

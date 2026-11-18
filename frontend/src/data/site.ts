@@ -1,11 +1,15 @@
 // Central place for club-wide info. Update here and it changes everywhere.
 export const site = {
-  name: "MSP Helwan",
-  tagline: "Tech Club",
-  email: "microsoftstudentpartners@gmail.com",
-  // NOTE: placeholder number copied from the original site — replace with the real one.
-  whatsapp: "+20 123 456 7890",
-  location: "Helwan University, Cairo, Egypt",
+  /** Full official name. */
+  fullName: "MSP Tech Club - Capital University",
+  /** Short name for tight spaces (logo, tab titles). */
+  name: "MSP Tech Club",
+  university: "Capital University",
+  email: "youbakrzaki@gmail.com",
+  whatsapp: "+20 111 284 9384",
+  /** Same number in international digits, for wa.me / tel: links. */
+  whatsappDigits: "201112849384",
+  location: "Capital University, Cairo, Egypt",
   socials: {
     facebook: "https://www.facebook.com/share/1F1zVsPefM/",
     instagram: "https://www.instagram.com/msptechclub?igsh=MTExMGFwendoMms3Mw==",

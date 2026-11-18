@@ -29,7 +29,7 @@ export class MailService {
     const user = config.get<string>('SMTP_USER');
     this.from =
       config.get<string>('MAIL_FROM') ??
-      (user ? `MSP Helwan <${user}>` : 'MSP Helwan <no-reply@localhost>');
+      (user ? `MSP Tech Club <${user}>` : 'MSP Tech Club <no-reply@localhost>');
     this.notifyTo = config.get<string>('CONTACT_NOTIFY_TO') ?? user;
     if (!host) {
       this.log.warn(

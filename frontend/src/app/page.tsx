@@ -32,12 +32,12 @@ export default function HomePage() {
               </span>
             </div>
             <h1 className="text-5xl md:text-7xl font-black mb-6 leading-tight">
-              MSP HELWAN <br />
-              <span className="text-orange-500">SEASON 26</span>
+              MSP TECH CLUB <br />
+              <span className="text-orange-500">SEASON 27</span>
             </h1>
             <p className="text-xl md:text-2xl text-slate-200 mb-8 font-light leading-relaxed">
               We don&apos;t just teach technology; we build the next generation of leaders and
-              innovators at Helwan University.
+              innovators at Capital University.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <button
@@ -87,7 +87,7 @@ export default function HomePage() {
               </h2>
               <div className="space-y-4 text-slate-600 leading-relaxed text-lg">
                 <p>
-                  MSP Helwan is a premier student community at Helwan University. We are a part
+                  MSP Tech Club is a premier student community at Capital University. We are a part
                   of the global Microsoft Student Partners program, dedicated to bridging the gap
                   between academic theory and industry reality.
                 </p>
@@ -116,7 +116,7 @@ export default function HomePage() {
               Recruitment Phase Finished
             </h3>
             <p className="text-slate-400 font-medium">
-              The selection phase for the Season 26 High Board has officially begun. We are no
+              The selection phase for the Season 27 High Board has officially begun. We are no
               longer accepting new applications. Good luck to all applicants!
             </p>
           </div>

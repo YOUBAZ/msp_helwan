@@ -5,16 +5,16 @@ import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
   title: {
-    default: "MSP Helwan",
-    template: "%s | MSP Helwan",
+    default: "MSP Tech Club - Capital University",
+    template: "%s | MSP Tech Club",
   },
   description:
-    "MSP Helwan Tech Club at Helwan University. A community dedicated to empowering students through technology, innovation, and leadership.",
+    "MSP Tech Club at Capital University. A community dedicated to empowering students through technology, innovation, and leadership.",
   icons: { icon: "/images/logo.jpeg" },
   openGraph: {
-    title: "MSP Helwan Tech Club",
+    title: "MSP Tech Club - Capital University",
     description:
-      "We don't just teach technology; we build the next generation of leaders and innovators at Helwan University.",
+      "We don't just teach technology; we build the next generation of leaders and innovators at Capital University.",
     images: ["/images/hero-bg.jpeg"],
   },
 };

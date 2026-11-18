@@ -76,7 +76,7 @@ export default function SetPasswordPage() {
           <AccentBar size="sm" className="mt-2" />
           {info && (
             <p className="text-slate-500 mt-4 font-medium">
-              {invite ? "You've been invited to MSP Helwan as " : "Choose a new password for "}
+              {invite ? "You've been invited to MSP Tech Club as " : "Choose a new password for "}
               <b className="break-all">{info.email}</b>
             </p>
           )}

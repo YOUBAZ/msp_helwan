@@ -36,7 +36,7 @@ export default function RegisterPage() {
 
           <div className="space-y-6">
             <p className="text-slate-600 font-medium text-lg leading-relaxed">
-              Thank you for your interest in joining <b>MSP Helwan Season 26</b>. The application
+              Thank you for your interest in joining <b>MSP Tech Club Season 27</b>. The application
               window for <b>Board Members (Heads &amp; Vices)</b> is now officially closed.
             </p>
             <div className="bg-slate-50 border border-slate-100 rounded-[2.5rem] p-8 text-left space-y-4">
@@ -74,7 +74,7 @@ export default function RegisterPage() {
           </div>
         </div>
         <p className="mt-12 text-center text-slate-400 text-[10px] font-black uppercase tracking-[0.3em]">
-          MSP Helwan Tech Club © 2026 | Season 26
+          MSP Tech Club - Capital University © 2026 | Season 27
         </p>
       </div>
     </section>

@@ -17,7 +17,7 @@ function layout(opts: {
   return `<!doctype html><html><body style="margin:0;background:#f1f5f9;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#0f172a">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:32px 12px"><tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:20px;overflow:hidden">
-<tr><td style="background:#1e3a8a;padding:22px 32px;color:#ffffff;font-weight:900;font-size:20px;letter-spacing:-0.5px">MSP <span style="color:#f97316">HELWAN</span></td></tr>
+<tr><td style="background:#1e3a8a;padding:22px 32px;color:#ffffff;font-weight:900;font-size:20px;letter-spacing:-0.5px">MSP <span style="color:#f97316">TECH CLUB</span></td></tr>
 <tr><td style="height:4px;background:#ea580c"></td></tr>
 <tr><td style="padding:32px">
 <h1 style="margin:0 0 16px;font-size:22px;color:#1e3a8a">${esc(opts.heading)}</h1>
@@ -25,7 +25,7 @@ ${opts.paragraphs.map((p) => `<p style="margin:0 0 12px;font-size:15px;line-heig
 ${button}
 ${opts.footnote ? `<p style="margin-top:24px;font-size:12px;color:#94a3b8">${opts.footnote}</p>` : ''}
 </td></tr>
-<tr><td style="padding:18px 32px;background:#0f172a;color:#64748b;font-size:11px;letter-spacing:1px;text-transform:uppercase">MSP Helwan Tech Club · Helwan University</td></tr>
+<tr><td style="padding:18px 32px;background:#0f172a;color:#64748b;font-size:11px;letter-spacing:1px;text-transform:uppercase">MSP Tech Club · Capital University</td></tr>
 </table></td></tr></table></body></html>`;
 }
 
@@ -39,18 +39,18 @@ export function inviteEmail(p: {
   const roles = p.roles.length ? p.roles.join(', ') : 'Member';
   return {
     to: p.to,
-    subject: 'You are invited to join MSP Helwan',
+    subject: 'You are invited to join MSP Tech Club',
     html: layout({
       heading: `Welcome to the squad, ${p.name.split(' ')[0]}!`,
       paragraphs: [
-        `<b>${esc(p.invitedBy)}</b> invited you to the MSP Helwan Tech Club dashboard as <b>${esc(roles)}</b>.`,
+        `<b>${esc(p.invitedBy)}</b> invited you to the MSP Tech Club dashboard as <b>${esc(roles)}</b>.`,
         'Click the button below, choose a password, and your account is ready.',
       ],
       button: { label: 'Accept invitation', url: p.link },
       footnote:
         "This link works once and expires in 7 days. If you weren't expecting this, you can ignore this email.",
     }),
-    text: `Hi ${p.name},\n\n${p.invitedBy} invited you to the MSP Helwan dashboard as ${roles}.\nOpen this link, choose a password, and your account is ready:\n\n${p.link}\n\nThe link works once and expires in 7 days.`,
+    text: `Hi ${p.name},\n\n${p.invitedBy} invited you to the MSP Tech Club dashboard as ${roles}.\nOpen this link, choose a password, and your account is ready:\n\n${p.link}\n\nThe link works once and expires in 7 days.`,
   };
 }
 
@@ -61,17 +61,17 @@ export function resetEmail(p: {
 }): Mail {
   return {
     to: p.to,
-    subject: 'Reset your MSP Helwan password',
+    subject: 'Reset your MSP Tech Club password',
     html: layout({
       heading: 'Reset your password',
       paragraphs: [
-        `Hi ${esc(p.name.split(' ')[0])}, use the button below to choose a new password for your MSP Helwan account.`,
+        `Hi ${esc(p.name.split(' ')[0])}, use the button below to choose a new password for your MSP Tech Club account.`,
       ],
       button: { label: 'Choose a new password', url: p.link },
       footnote:
         "This link works once and expires in 24 hours. If you didn't ask for this, ignore this email: your password stays the same.",
     }),
-    text: `Hi ${p.name},\n\nOpen this link to choose a new password for your MSP Helwan account:\n\n${p.link}\n\nIt works once and expires in 24 hours. If you didn't ask for this, ignore this email.`,
+    text: `Hi ${p.name},\n\nOpen this link to choose a new password for your MSP Tech Club account:\n\n${p.link}\n\nIt works once and expires in 24 hours. If you didn't ask for this, ignore this email.`,
   };
 }
 
