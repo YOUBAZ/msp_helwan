@@ -51,10 +51,26 @@ Add new permissions in `backend/src/access/permissions.ts` and protect routes wi
 
 ## Database
 
-PostgreSQL via Drizzle ORM (`backend/src/db/`).
-- **Locally** (no `DATABASE_URL`): an embedded Postgres (PGlite) saved in `backend/data/pglite` (git-ignored). Nothing to install.
-- **Production**: set `DATABASE_URL` to a PostgreSQL database, e.g. a free [Neon](https://neon.tech) project.
-- Migrations live in `backend/src/db/migrations.ts` and run automatically at startup.
+PostgreSQL via Drizzle ORM (`backend/src/db/`). Migrations live in `backend/src/db/migrations.ts` and run automatically when the backend starts.
+
+| Where | Database | How to view the tables |
+| --- | --- | --- |
+| Production | Neon (`DATABASE_URL` in Vercel) | console.neon.tech → your project → **Tables** / **SQL Editor** |
+| Local (recommended) | PostgreSQL in Docker | pgAdmin at http://localhost:5050 |
+| Local (no Docker) | Built-in PGlite in `backend/data/pglite` (when `DATABASE_URL` is empty) | not viewable while the backend runs |
+
+### Local PostgreSQL + pgAdmin (Docker)
+
+```bash
+docker compose up -d      # in the project root: starts PostgreSQL (port 5433) and pgAdmin (port 5050)
+```
+
+`backend/.env` then uses `DATABASE_URL=postgres://msp:msp_local_dev@localhost:5433/msp_helwan`.
+
+In pgAdmin (http://localhost:5050): expand **Servers → MSP Helwan (local)**, enter the password `msp_local_dev` once (tick "Save password"), then open
+**Databases → msp_helwan → Schemas → public → Tables**. Right-click a table → **View/Edit Data → All Rows**.
+
+`docker compose stop` stops both (data is kept). `docker compose down -v` deletes the local database completely.
 
 ## Deploy for free (Vercel + Neon, no credit card)
 

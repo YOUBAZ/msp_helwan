@@ -1,0 +1,48 @@
+# Local development database + pgAdmin. Not used in production (that's Neon).
+#
+#   docker compose up -d     start (keeps running in the background)
+#   docker compose stop      stop (data is kept)
+#   docker compose down -v   delete everything, including the data
+#
+# pgAdmin: http://localhost:5050  (password for the server: msp_local_dev)
+name: msp-helwan
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: msp
+      POSTGRES_PASSWORD: msp_local_dev
+      POSTGRES_DB: msp_helwan
+    ports:
+      - "127.0.0.1:5433:5432" # only reachable from this computer
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U msp -d msp_helwan"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  pgadmin:
+    image: dpage/pgadmin4:9
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      # Desktop mode: no pgAdmin login screen (fine for a local-only tool).
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "127.0.0.1:5050:80"
+    volumes:
+      - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - pgadmin-data:/var/lib/pgadmin
+
+volumes:
+  db-data:
+  pgadmin-data:
