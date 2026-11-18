@@ -22,6 +22,11 @@ export const PERMISSIONS = [
     group: 'Team hierarchy',
     label: "Build and publish each season's team hierarchy (Our Team page)",
   },
+  {
+    key: 'media.manage',
+    group: 'Media',
+    label: 'Manage the Media page (albums, photos and videos)',
+  },
   { key: 'messages.view', group: 'Inbox', label: 'Read contact-form messages' },
   {
     key: 'messages.delete',

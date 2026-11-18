@@ -160,3 +160,51 @@ export const hierarchyMembers = pgTable('hierarchy_members', {
   sortOrder: integer('sort_order').notNull().default(0),
   createdAt: createdAt(),
 });
+
+export const mediaAlbums = pgTable('media_albums', {
+  id: id(),
+  title: text('title').notNull(),
+  category: text('category').notNull(),
+  eventDate: date('event_date'),
+  published: boolean('published').notNull().default(false),
+  /** Manual order on the public page: lower first. */
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: createdAt(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/** A photo or video link inside an album, in display order. */
+export const mediaItems = pgTable('media_items', {
+  id: id(),
+  albumId: uuid('album_id')
+    .notNull()
+    .references(() => mediaAlbums.id, { onDelete: 'cascade' }),
+  kind: text('kind').$type<'photo' | 'video'>().notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  /** Photos still served as website files (before the one-time import). */
+  legacyPath: text('legacy_path'),
+  videoProvider: text('video_provider').$type<
+    'youtube' | 'facebook' | 'drive'
+  >(),
+  embedUrl: text('embed_url'),
+  thumbnailUrl: text('thumbnail_url'),
+  sourceUrl: text('source_url'),
+  createdAt: createdAt(),
+});
+
+/** Stored photo files: a full and a small version per photo item. */
+export const mediaBlobs = pgTable(
+  'media_blobs',
+  {
+    itemId: uuid('item_id')
+      .notNull()
+      .references(() => mediaItems.id, { onDelete: 'cascade' }),
+    variant: text('variant').$type<'full' | 'small'>().notNull(),
+    mime: text('mime').notNull(),
+    data: bytea('data').notNull(),
+    bytes: integer('bytes').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.itemId, t.variant] })],
+);

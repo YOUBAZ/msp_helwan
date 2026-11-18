@@ -149,4 +149,89 @@ INSERT INTO hierarchy_members (position_id, legacy_name, legacy_image, legacy_li
   ('00000000-0000-4000-8026-000000000006', 'Haneen Borhan', '/images/team/hanen.jpeg', 'https://www.linkedin.com/in/haneen-borhan-736a22363', 1);
 `,
   },
+  {
+    id: '004_media',
+    sql: `
+CREATE TABLE media_albums (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  title text NOT NULL,
+  category text NOT NULL,
+  event_date date,
+  published boolean NOT NULL DEFAULT false,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE media_items (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  album_id uuid NOT NULL REFERENCES media_albums(id) ON DELETE CASCADE,
+  kind text NOT NULL,
+  sort_order integer NOT NULL DEFAULT 0,
+  legacy_path text,
+  video_provider text,
+  embed_url text,
+  thumbnail_url text,
+  source_url text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (kind IN ('photo', 'video'))
+);
+CREATE INDEX media_items_album_idx ON media_items(album_id);
+
+CREATE TABLE media_blobs (
+  item_id uuid NOT NULL REFERENCES media_items(id) ON DELETE CASCADE,
+  variant text NOT NULL,
+  mime text NOT NULL,
+  data bytea NOT NULL,
+  bytes integer NOT NULL,
+  PRIMARY KEY (item_id, variant),
+  CHECK (variant IN ('full', 'small'))
+);
+
+INSERT INTO media_albums (id, title, category, published, sort_order) VALUES
+  ('00000000-0000-4000-8a00-000000000000', 'Orientation Day 2025', 'Event', true, 0),
+  ('00000000-0000-4000-8a00-000000000001', 'AI Catalyst 2025', 'Workshop', true, 1),
+  ('00000000-0000-4000-8a00-000000000002', 'Problem Solving Competition 2025', 'Contest', true, 2),
+  ('00000000-0000-4000-8a00-000000000003', 'Best Heads & Members 2025', 'Awards', true, 3);
+
+INSERT INTO media_items (album_id, kind, sort_order, legacy_path) VALUES
+  ('00000000-0000-4000-8a00-000000000000', 'photo', 0, '/images/events/orientation/1.jpg'),
+  ('00000000-0000-4000-8a00-000000000000', 'photo', 1, '/images/events/orientation/2.jpg'),
+  ('00000000-0000-4000-8a00-000000000000', 'photo', 2, '/images/events/orientation/3.jpg'),
+  ('00000000-0000-4000-8a00-000000000000', 'photo', 3, '/images/events/orientation/4.jpg'),
+  ('00000000-0000-4000-8a00-000000000000', 'photo', 4, '/images/events/orientation/5.jpg'),
+  ('00000000-0000-4000-8a00-000000000000', 'photo', 5, '/images/events/orientation/6.jpg'),
+  ('00000000-0000-4000-8a00-000000000000', 'photo', 6, '/images/events/orientation/7.jpg'),
+  ('00000000-0000-4000-8a00-000000000000', 'photo', 7, '/images/events/orientation/8.jpg'),
+  ('00000000-0000-4000-8a00-000000000000', 'photo', 8, '/images/events/orientation/9.jpg'),
+  ('00000000-0000-4000-8a00-000000000000', 'photo', 9, '/images/events/orientation/10.jpg'),
+  ('00000000-0000-4000-8a00-000000000000', 'photo', 10, '/images/events/orientation/11.jpg'),
+  ('00000000-0000-4000-8a00-000000000000', 'photo', 11, '/images/events/orientation/12.jpg'),
+  ('00000000-0000-4000-8a00-000000000001', 'photo', 0, '/images/events/ai/1.jpg'),
+  ('00000000-0000-4000-8a00-000000000001', 'photo', 1, '/images/events/ai/2.jpg'),
+  ('00000000-0000-4000-8a00-000000000001', 'photo', 2, '/images/events/ai/3.jpg'),
+  ('00000000-0000-4000-8a00-000000000001', 'photo', 3, '/images/events/ai/4.jpg'),
+  ('00000000-0000-4000-8a00-000000000001', 'photo', 4, '/images/events/ai/5.jpg'),
+  ('00000000-0000-4000-8a00-000000000001', 'photo', 5, '/images/events/ai/6.jpg'),
+  ('00000000-0000-4000-8a00-000000000001', 'photo', 6, '/images/events/ai/7.jpg'),
+  ('00000000-0000-4000-8a00-000000000001', 'photo', 7, '/images/events/ai/8.jpg'),
+  ('00000000-0000-4000-8a00-000000000002', 'photo', 0, '/images/events/problem/1.jpg'),
+  ('00000000-0000-4000-8a00-000000000002', 'photo', 1, '/images/events/problem/2.jpg'),
+  ('00000000-0000-4000-8a00-000000000002', 'photo', 2, '/images/events/problem/3.jpg'),
+  ('00000000-0000-4000-8a00-000000000002', 'photo', 3, '/images/events/problem/4.jpg'),
+  ('00000000-0000-4000-8a00-000000000002', 'photo', 4, '/images/events/problem/5.jpg'),
+  ('00000000-0000-4000-8a00-000000000003', 'photo', 0, '/images/events/best/1.jpg'),
+  ('00000000-0000-4000-8a00-000000000003', 'photo', 1, '/images/events/best/2.jpg'),
+  ('00000000-0000-4000-8a00-000000000003', 'photo', 2, '/images/events/best/3.jpg'),
+  ('00000000-0000-4000-8a00-000000000003', 'photo', 3, '/images/events/best/4.jpg'),
+  ('00000000-0000-4000-8a00-000000000003', 'photo', 4, '/images/events/best/5.jpg'),
+  ('00000000-0000-4000-8a00-000000000003', 'photo', 5, '/images/events/best/6.jpg'),
+  ('00000000-0000-4000-8a00-000000000003', 'photo', 6, '/images/events/best/7.jpg'),
+  ('00000000-0000-4000-8a00-000000000003', 'photo', 7, '/images/events/best/8.jpg'),
+  ('00000000-0000-4000-8a00-000000000003', 'photo', 8, '/images/events/best/9.jpg'),
+  ('00000000-0000-4000-8a00-000000000003', 'photo', 9, '/images/events/best/10.jpg'),
+  ('00000000-0000-4000-8a00-000000000003', 'photo', 10, '/images/events/best/11.jpg'),
+  ('00000000-0000-4000-8a00-000000000003', 'photo', 11, '/images/events/best/12.jpg');
+`,
+  },
 ];
