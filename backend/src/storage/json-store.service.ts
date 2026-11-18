@@ -1,35 +1,27 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-
-export type Record_ = { id: string; createdAt: string };
+import { DataStore, newRecord, Record_ } from './data-store';
 
 /**
- * Tiny file-backed store: one JSON file per collection inside DATA_DIR.
- * Writes are serialized and atomic (write temp file, then rename), which is
- * plenty for a club website's contact form and newsletter volume. Swap this
- * service for a real database (Postgres, Mongo, Firestore...) when needed.
+ * File-backed store for local development: one JSON file per collection in
+ * `dir`. Writes are serialized and atomic (temp file + rename).
+ * Not suitable for serverless hosts (their disk is temporary).
  */
-@Injectable()
-export class JsonStoreService implements OnModuleInit {
+export class JsonStoreService extends DataStore {
   private readonly dir: string;
   private queue: Promise<unknown> = Promise.resolve();
 
-  constructor(config: ConfigService) {
-    this.dir = resolve(config.get<string>('DATA_DIR') ?? 'data');
-  }
-
-  async onModuleInit() {
-    await mkdir(this.dir, { recursive: true });
+  constructor(dir: string) {
+    super();
+    this.dir = resolve(dir);
   }
 
   private file(collection: string) {
     return join(this.dir, `${collection}.json`);
   }
 
-  async list<T extends Record_>(collection: string): Promise<T[]> {
+  private async read<T>(collection: string): Promise<T[]> {
     try {
       return JSON.parse(await readFile(this.file(collection), 'utf8')) as T[];
     } catch (err) {
@@ -38,21 +30,21 @@ export class JsonStoreService implements OnModuleInit {
     }
   }
 
-  private save<T>(collection: string, items: T[]) {
+  private async save<T>(collection: string, items: T[]) {
+    await mkdir(this.dir, { recursive: true });
     const target = this.file(collection);
     const tmp = `${target}.${process.pid}.tmp`;
-    return writeFile(tmp, JSON.stringify(items, null, 2)).then(() =>
-      rename(tmp, target),
-    );
+    await writeFile(tmp, JSON.stringify(items, null, 2));
+    await rename(tmp, target);
   }
 
-  /** Run a read-modify-write on a collection, serialized with all other writes. */
-  private mutate<T extends Record_, R>(
+  /** Read-modify-write, serialized with all other writes. */
+  private mutate<T, R>(
     collection: string,
     fn: (items: T[]) => { items: T[]; result: R },
   ): Promise<R> {
     const run = this.queue.then(async () => {
-      const { items, result } = fn(await this.list<T>(collection));
+      const { items, result } = fn(await this.read<T>(collection));
       await this.save(collection, items);
       return result;
     });
@@ -60,21 +52,27 @@ export class JsonStoreService implements OnModuleInit {
     return run;
   }
 
+  async list<T extends Record_>(collection: string): Promise<T[]> {
+    return (await this.read<T>(collection)).reverse();
+  }
+
   insert<T extends Record_>(
     collection: string,
     data: Omit<T, 'id' | 'createdAt'>,
-    isDuplicate?: (existing: T) => boolean,
+    uniqueField?: keyof Omit<T, 'id' | 'createdAt'> & string,
   ): Promise<{ record: T; created: boolean }> {
     return this.mutate<T, { record: T; created: boolean }>(
       collection,
       (items) => {
-        const dup = isDuplicate ? items.find(isDuplicate) : undefined;
+        const dup =
+          uniqueField &&
+          items.find(
+            (i) =>
+              (i as Record<string, unknown>)[uniqueField] ===
+              (data as Record<string, unknown>)[uniqueField],
+          );
         if (dup) return { items, result: { record: dup, created: false } };
-        const record = {
-          ...data,
-          id: randomUUID(),
-          createdAt: new Date().toISOString(),
-        } as T;
+        const record = newRecord<T>(data, randomUUID());
         return { items: [...items, record], result: { record, created: true } };
       },
     );

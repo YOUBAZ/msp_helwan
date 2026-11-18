@@ -43,7 +43,19 @@ Logged-in board members see contact messages and newsletter subscribers at `/das
 
 ## Storage
 
-Submissions are saved as JSON files in `backend/data/` (git-ignored). `JsonStoreService` is the only class that touches storage, so it can be swapped for a real database later.
+- **Locally** (no `MONGODB_URI`): submissions are saved as JSON files in `backend/data/` (git-ignored).
+- **In production** (`MONGODB_URI` set): submissions go to MongoDB, database `msp_helwan`, collections `messages` and `subscribers`.
+
+## Deploy for free (Vercel + MongoDB Atlas, no credit card)
+
+Create **two Vercel projects from this same repo**:
+
+| Project | Root Directory | Environment variables |
+| --- | --- | --- |
+| API | `backend` | `MONGODB_URI`, `JWT_SECRET`, `BOARD_ACCOUNTS`, `CORS_ORIGIN=https://<website>.vercel.app` |
+| Website | `frontend` | `NEXT_PUBLIC_API_URL=https://<api>.vercel.app/api` |
+
+Redeploy the website after changing `NEXT_PUBLIC_API_URL` (it is baked in at build time).
 
 ## Tests
 

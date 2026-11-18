@@ -1,9 +1,13 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // Behind a hosting proxy (Vercel, Render...), use the visitor's real IP for
+  // rate limiting instead of the proxy's.
+  if (process.env.VERCEL || process.env.TRUST_PROXY) app.set('trust proxy', 1);
   app.setGlobalPrefix('api');
   app.enableCors({
     origin: (process.env.CORS_ORIGIN ?? 'http://localhost:3001')

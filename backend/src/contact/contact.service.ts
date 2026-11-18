@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Record_, JsonStoreService } from '../storage/json-store.service';
+import { DataStore, Record_ } from '../storage/data-store';
 import { CreateContactDto } from './contact.dto';
 
 export type ContactMessage = Record_ & CreateContactDto;
@@ -9,7 +9,7 @@ export const MESSAGES = 'messages';
 export class ContactService {
   private readonly logger = new Logger(ContactService.name);
 
-  constructor(private readonly store: JsonStoreService) {}
+  constructor(private readonly store: DataStore) {}
 
   async create(dto: CreateContactDto) {
     const { record } = await this.store.insert<ContactMessage>(MESSAGES, dto);
@@ -18,8 +18,7 @@ export class ContactService {
   }
 
   async findAll() {
-    const items = await this.store.list<ContactMessage>(MESSAGES);
-    return items.reverse();
+    return this.store.list<ContactMessage>(MESSAGES);
   }
 
   remove(id: string) {
