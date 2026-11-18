@@ -11,10 +11,10 @@ export class NewsletterController {
   @HttpCode(201)
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
   async subscribe(@Body() dto: SubscribeDto) {
-    const { created } = await this.newsletter.subscribe(dto.email);
+    const created = await this.newsletter.subscribe(dto.email);
     return {
       message: created
-        ? "You're subscribed! Watch your inbox for updates."
+        ? 'Thanks for subscribing! We will share club news with you.'
         : "You're already subscribed.",
     };
   }

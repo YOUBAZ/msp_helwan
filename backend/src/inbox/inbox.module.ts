@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ContactModule } from '../contact/contact.module';
 import { NewsletterModule } from '../newsletter/newsletter.module';
-import { AdminController } from './admin.controller';
+import { InboxController } from './inbox.controller';
 
 @Module({
   imports: [ContactModule, NewsletterModule],
-  controllers: [AdminController],
+  controllers: [InboxController],
 })
-export class AdminModule {}
+export class InboxModule {}

@@ -24,15 +24,23 @@ npm run dev                 # http://localhost:3001
 
 Set `NEXT_PUBLIC_API_URL` in `frontend/.env.local` if the API isn't at `http://localhost:4001/api`.
 
-### Board login accounts
+### Accounts, roles and permissions
+
+Accounts are **invite-only**. The very first President comes from `BOARD_ACCOUNTS`
+(used only while the database has no users):
 
 ```bash
 cd backend
 npm run hash-password -- "a-strong-password"
-# put the output in .env:  BOARD_ACCOUNTS=you@example.com:<hash>   (comma-separate several)
+# in .env:  BOARD_ACCOUNTS=you@example.com:<hash>
 ```
 
-Logged-in board members see contact messages and newsletter subscribers at `/dashboard`.
+Then, in the dashboard (`/login` → `/dashboard`):
+- **Members**: invite people (name, email, roles) and send them the link. They choose a password at `/set-password/...`. Also: change roles, disable accounts, create password-reset links.
+- **Roles**: the President creates roles, ticks permissions, and assigns people. Default roles: President (all permissions, protected), High Board, Board, Member.
+- Rules enforced by the API: nobody can grant permissions they don't have, only a President can appoint a President, and the club always keeps at least one active President.
+
+Add new permissions in `backend/src/access/permissions.ts` and protect routes with `@Auth('your.permission')`.
 
 ## Where to edit content
 
@@ -41,18 +49,20 @@ Logged-in board members see contact messages and newsletter subscribers at `/das
 - Board members: `frontend/src/data/team.ts` (photos in `frontend/public/images/team/`)
 - Events & gallery albums: `frontend/src/data/events.ts` (photos in `frontend/public/images/events/`)
 
-## Storage
+## Database
 
-- **Locally** (no `MONGODB_URI`): submissions are saved as JSON files in `backend/data/` (git-ignored).
-- **In production** (`MONGODB_URI` set): submissions go to MongoDB, database `msp_helwan`, collections `messages` and `subscribers`.
+PostgreSQL via Drizzle ORM (`backend/src/db/`).
+- **Locally** (no `DATABASE_URL`): an embedded Postgres (PGlite) saved in `backend/data/pglite` (git-ignored). Nothing to install.
+- **Production**: set `DATABASE_URL` to a PostgreSQL database, e.g. a free [Neon](https://neon.tech) project.
+- Migrations live in `backend/src/db/migrations.ts` and run automatically at startup.
 
-## Deploy for free (Vercel + MongoDB Atlas, no credit card)
+## Deploy for free (Vercel + Neon, no credit card)
 
 Create **two Vercel projects from this same repo**:
 
 | Project | Root Directory | Environment variables |
 | --- | --- | --- |
-| API | `backend` | `MONGODB_URI`, `JWT_SECRET`, `BOARD_ACCOUNTS`, `CORS_ORIGIN=https://<website>.vercel.app` |
+| API | `backend` | `DATABASE_URL`, `JWT_SECRET`, `BOARD_ACCOUNTS`, `CORS_ORIGIN=https://<website>.vercel.app` |
 | Website | `frontend` | `NEXT_PUBLIC_API_URL=https://<api>.vercel.app/api` |
 
 Redeploy the website after changing `NEXT_PUBLIC_API_URL` (it is baked in at build time).
@@ -60,5 +70,5 @@ Redeploy the website after changing `NEXT_PUBLIC_API_URL` (it is baked in at bui
 ## Tests
 
 ```bash
-cd backend && npm run test:e2e
+cd backend && npm run test:e2e   # uses an in-memory database
 ```

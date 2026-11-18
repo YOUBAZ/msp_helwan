@@ -1,27 +1,36 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { DataStore, Record_ } from '../storage/data-store';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { desc, eq } from 'drizzle-orm';
+import { DB, type Database } from '../db/database';
+import { contactMessages } from '../db/schema';
 import { CreateContactDto } from './contact.dto';
-
-export type ContactMessage = Record_ & CreateContactDto;
-export const MESSAGES = 'messages';
 
 @Injectable()
 export class ContactService {
   private readonly logger = new Logger(ContactService.name);
 
-  constructor(private readonly store: DataStore) {}
+  constructor(@Inject(DB) private readonly db: Database) {}
 
   async create(dto: CreateContactDto) {
-    const { record } = await this.store.insert<ContactMessage>(MESSAGES, dto);
+    const [record] = await this.db
+      .insert(contactMessages)
+      .values(dto)
+      .returning();
     this.logger.log(`New contact message from ${record.email}`);
     return record;
   }
 
-  async findAll() {
-    return this.store.list<ContactMessage>(MESSAGES);
+  findAll() {
+    return this.db
+      .select()
+      .from(contactMessages)
+      .orderBy(desc(contactMessages.createdAt));
   }
 
-  remove(id: string) {
-    return this.store.remove(MESSAGES, id);
+  async remove(id: string) {
+    const r = await this.db
+      .delete(contactMessages)
+      .where(eq(contactMessages.id, id))
+      .returning({ id: contactMessages.id });
+    return r.length > 0;
   }
 }

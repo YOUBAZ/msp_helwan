@@ -5,11 +5,15 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowRight, Menu, X } from "lucide-react";
 import { navLinks } from "@/data/site";
+import { readToken } from "@/lib/auth";
 
 export default function Header() {
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
+
+  useEffect(() => setSignedIn(!!readToken()), [pathname]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -68,10 +72,10 @@ export default function Header() {
 
           <div className="hidden lg:flex items-center gap-3">
             <Link
-              href="/login"
+              href={signedIn ? "/dashboard" : "/login"}
               className="px-5 py-2 text-sm font-black text-blue-900 uppercase tracking-widest hover:text-orange-600 transition-colors"
             >
-              Login
+              {signedIn ? "Dashboard" : "Login"}
             </Link>
             <Link
               href="/register"
@@ -110,10 +114,10 @@ export default function Header() {
             ))}
             <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100 mt-2">
               <Link
-                href="/login"
+                href={signedIn ? "/dashboard" : "/login"}
                 className="py-4 text-center font-black uppercase text-[10px] tracking-widest text-blue-900 bg-slate-100 rounded-2xl"
               >
-                Login
+                {signedIn ? "Dashboard" : "Login"}
               </Link>
               <Link
                 href="/register"

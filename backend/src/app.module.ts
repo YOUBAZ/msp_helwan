@@ -2,23 +2,26 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { AdminModule } from './admin/admin.module';
-import { AuthModule } from './auth/auth.module';
+import { AccessModule } from './access/access.module';
 import { ContactModule } from './contact/contact.module';
+import { DbModule } from './db/db.module';
 import { HealthController } from './health/health.controller';
+import { InboxModule } from './inbox/inbox.module';
 import { NewsletterModule } from './newsletter/newsletter.module';
-import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    // Basic abuse protection for the public forms: 20 requests / minute / IP.
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 20 }]),
-    StorageModule,
+    // Default: 120 requests/minute/IP. Public forms and login set stricter limits.
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60_000, limit: 120 }],
+      skipIf: () => process.env.NODE_ENV === 'test',
+    }),
+    DbModule,
+    AccessModule,
     ContactModule,
     NewsletterModule,
-    AuthModule,
-    AdminModule,
+    InboxModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

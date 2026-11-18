@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { ArrowLeft, Lock, LogIn, Mail, ShieldCheck } from "lucide-react";
 import AccentBar from "@/components/AccentBar";
-import { api, TOKEN_KEY } from "@/lib/api";
+import { api } from "@/lib/api";
+import { saveToken } from "@/lib/auth";
 
 const inputCls =
   "w-full pl-14 pr-6 py-4 bg-slate-800/50 border border-slate-700 text-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-600 focus:border-transparent transition-all placeholder:text-slate-600";
@@ -28,9 +29,7 @@ export default function LoginPage() {
         method: "POST",
         body: JSON.stringify(data),
       });
-      try {
-        localStorage.setItem(TOKEN_KEY, res.accessToken);
-      } catch {}
+      saveToken(res.accessToken);
       router.push("/dashboard");
     } catch (err) {
       setError((err as Error).message);
@@ -98,12 +97,17 @@ export default function LoginPage() {
                 >
                   Password
                 </label>
-                <a
-                  href="#"
+                <button
+                  type="button"
+                  onClick={() =>
+                    setError(
+                      "Ask a board member to send you a password-reset link from the Members page.",
+                    )
+                  }
                   className="text-[10px] font-black text-orange-600 uppercase tracking-widest hover:text-white transition-colors"
                 >
                   Forgot?
-                </a>
+                </button>
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
@@ -138,7 +142,7 @@ export default function LoginPage() {
           </div>
           <div className="mt-10 text-center border-t border-slate-800 pt-8">
             <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">
-              Authorized Board Members Only
+              Members only · accounts are created by invitation
             </p>
           </div>
         </form>
