@@ -164,3 +164,12 @@ export class SetMembersDto {
   @IsUUID('all', { each: true })
   userIds!: string[];
 }
+
+export class ForgotPasswordDto {
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsEmail({}, { message: 'Please enter a valid email address.' })
+  @MaxLength(254)
+  email!: string;
+}

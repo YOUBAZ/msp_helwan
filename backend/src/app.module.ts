@@ -7,6 +7,7 @@ import { ContactModule } from './contact/contact.module';
 import { DbModule } from './db/db.module';
 import { HealthController } from './health/health.controller';
 import { InboxModule } from './inbox/inbox.module';
+import { MailModule } from './mail/mail.module';
 import { NewsletterModule } from './newsletter/newsletter.module';
 
 @Module({
@@ -18,6 +19,7 @@ import { NewsletterModule } from './newsletter/newsletter.module';
       skipIf: () => process.env.NODE_ENV === 'test',
     }),
     DbModule,
+    MailModule,
     AccessModule,
     ContactModule,
     NewsletterModule,

@@ -62,7 +62,7 @@ PostgreSQL via Drizzle ORM (`backend/src/db/`). Migrations live in `backend/src/
 ### Local PostgreSQL + pgAdmin (Docker)
 
 ```bash
-docker compose up -d      # in the project root: starts PostgreSQL (port 5433) and pgAdmin (port 5050)
+docker compose up -d      # in the project root: PostgreSQL (5433), pgAdmin (5050), Mailpit (8025)
 ```
 
 `backend/.env` then uses `DATABASE_URL=postgres://msp:msp_local_dev@localhost:5433/msp_helwan`.
@@ -72,13 +72,24 @@ In pgAdmin (http://localhost:5050): expand **Servers → MSP Helwan (local)**, e
 
 `docker compose stop` stops both (data is kept). `docker compose down -v` deletes the local database completely.
 
+## Email
+
+The backend sends email over SMTP: invitations, password resets ("Forgot?" on the login page) and a notification to the club inbox for every contact-form message (reply directly to answer the sender). If `SMTP_HOST` is empty, email is off and links are shown on screen to copy instead.
+
+| Where | Settings |
+| --- | --- |
+| Local | `docker compose up -d` starts **Mailpit**; every email lands at http://localhost:8025 (nothing is really sent). `SMTP_HOST=localhost`, `SMTP_PORT=1025` |
+| Production (Gmail) | Turn on 2-Step Verification for the club Gmail, create an **App Password** at myaccount.google.com/apppasswords, then set `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `SMTP_USER=<the gmail>`, `SMTP_PASS=<16-letter app password>` |
+
+Optional: `MAIL_FROM` (sender name/address) and `CONTACT_NOTIFY_TO` (inbox for contact-form alerts; defaults to `SMTP_USER`).
+
 ## Deploy for free (Vercel + Neon, no credit card)
 
 Create **two Vercel projects from this same repo**:
 
 | Project | Root Directory | Environment variables |
 | --- | --- | --- |
-| API | `backend` | `DATABASE_URL`, `JWT_SECRET`, `BOARD_ACCOUNTS`, `CORS_ORIGIN=https://<website>.vercel.app` |
+| API | `backend` | `DATABASE_URL`, `JWT_SECRET`, `BOARD_ACCOUNTS`, `CORS_ORIGIN=https://<website>.vercel.app`, `FRONTEND_URL=https://<website>.vercel.app`, `SMTP_*` (see Email) |
 | Website | `frontend` | `NEXT_PUBLIC_API_URL=https://<api>.vercel.app/api` |
 
 Redeploy the website after changing `NEXT_PUBLIC_API_URL` (it is baked in at build time).

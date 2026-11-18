@@ -13,6 +13,8 @@ import { DB, type Database } from '../db/database';
 import { accountTokens, roles, userRoles, users } from '../db/schema';
 import type { CurrentUser } from './current-user';
 import { RolesService } from './roles.service';
+import { MailService } from '../mail/mail.service';
+import { inviteEmail, resetEmail } from '../mail/templates';
 import { UsersService } from './users.service';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -26,6 +28,7 @@ export class TokensService {
     @Inject(DB) private readonly db: Database,
     private readonly roles: RolesService,
     private readonly users: UsersService,
+    private readonly mail: MailService,
     config: ConfigService,
   ) {
     this.frontendUrl = (
@@ -83,7 +86,24 @@ export class TokensService {
       createdBy: actor.id,
       expiresAt: new Date(Date.now() + 7 * DAY),
     });
-    return { id: row.id, email, link, expiresAt: row.expiresAt };
+    const roleNames = roleIds.length
+      ? (
+          await this.db
+            .select({ name: roles.name })
+            .from(roles)
+            .where(inArray(roles.id, roleIds))
+        ).map((r) => r.name)
+      : [];
+    const emailSent = await this.mail.send(
+      inviteEmail({
+        to: email,
+        name: row.name,
+        invitedBy: actor.name,
+        roles: roleNames,
+        link,
+      }),
+    );
+    return { id: row.id, email, link, expiresAt: row.expiresAt, emailSent };
   }
 
   async listInvites() {
@@ -130,6 +150,23 @@ export class TokensService {
 
   async createResetLink(actor: CurrentUser, userId: string) {
     const { row: user } = await this.users.assertCanManage(actor, userId);
+    return this.issueReset(user, actor.id);
+  }
+
+  /**
+   * Self-service "forgot password". Always behaves the same whether or not the
+   * email has an account, so it can't be used to discover members' emails.
+   */
+  async requestReset(email: string) {
+    const user = await this.users.findByEmail(email);
+    if (user && user.status === 'active') await this.issueReset(user, null);
+  }
+
+  private async issueReset(
+    user: { id: string; email: string; name: string },
+    createdBy: string | null,
+  ) {
+    const userId = user.id;
     await this.db
       .delete(accountTokens)
       .where(
@@ -144,10 +181,17 @@ export class TokensService {
       email: user.email,
       name: user.name,
       userId,
-      createdBy: actor.id,
+      createdBy,
       expiresAt: new Date(Date.now() + DAY),
     });
-    return { link, expiresAt: row.expiresAt };
+    const emailSent = await this.mail.send(
+      resetEmail({ to: user.email, name: user.name, link }),
+    );
+    return { link, expiresAt: row.expiresAt, emailSent };
+  }
+
+  get emailEnabled() {
+    return this.mail.enabled;
   }
 
   private async findValid(raw: string) {
@@ -157,7 +201,7 @@ export class TokensService {
       .where(eq(accountTokens.tokenHash, sha256(raw)));
     if (!row || row.usedAt || row.expiresAt < new Date()) {
       throw new NotFoundException(
-        'This link is invalid or has expired. Ask a board member for a new one.',
+        'This link is invalid or has expired. Ask a board member for a new one, or use "Forgot?" on the login page.',
       );
     }
     return row;

@@ -16,6 +16,7 @@ export default function LoginPage() {
   const [data, setData] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [mode, setMode] = useState<"login" | "forgot">("login");
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setData((d) => ({ ...d, [e.target.name]: e.target.value }));
@@ -59,6 +60,9 @@ export default function LoginPage() {
           </p>
         </div>
 
+        {mode === "forgot" ? (
+          <ForgotForm initialEmail={data.email} onBack={() => setMode("login")} />
+        ) : (
         <form
           onSubmit={onSubmit}
           className="bg-[#0f172a] p-10 md:p-12 rounded-[3.5rem] shadow-2xl border border-slate-800 relative overflow-hidden"
@@ -99,11 +103,10 @@ export default function LoginPage() {
                 </label>
                 <button
                   type="button"
-                  onClick={() =>
-                    setError(
-                      "Ask a board member to send you a password-reset link from the Members page.",
-                    )
-                  }
+                  onClick={() => {
+                    setError("");
+                    setMode("forgot");
+                  }}
                   className="text-[10px] font-black text-orange-600 uppercase tracking-widest hover:text-white transition-colors"
                 >
                   Forgot?
@@ -146,7 +149,92 @@ export default function LoginPage() {
             </p>
           </div>
         </form>
+        )}
       </div>
     </section>
+  );
+}
+
+function ForgotForm({ initialEmail, onBack }: { initialEmail: string; onBack: () => void }) {
+  const [email, setEmail] = useState(initialEmail);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState({ ok: "", err: "" });
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setMsg({ ok: "", err: "" });
+    try {
+      const res = await api<{ message: string }>("/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      });
+      setMsg({ ok: res.message, err: "" });
+    } catch (err) {
+      setMsg({ ok: "", err: (err as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={submit}
+      className="bg-[#0f172a] p-10 md:p-12 rounded-[3.5rem] shadow-2xl border border-slate-800 relative overflow-hidden space-y-6"
+    >
+      <div>
+        <h3 className="text-white font-black uppercase tracking-widest text-sm">Forgot your password?</h3>
+        <p className="text-slate-400 text-sm mt-2">
+          Enter your account email and we&apos;ll send you a link to choose a new password.
+        </p>
+      </div>
+      <div className="space-y-2">
+        <label
+          htmlFor="forgot-email"
+          className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4"
+        >
+          Email Address
+        </label>
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+            <Mail className="text-slate-500" size={18} />
+          </div>
+          <input
+            id="forgot-email"
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={inputCls}
+            placeholder="name@msphelwan.com"
+            autoComplete="username"
+          />
+        </div>
+      </div>
+      {msg.err && (
+        <p role="alert" className="text-red-400 text-xs font-bold text-center">
+          {msg.err}
+        </p>
+      )}
+      {msg.ok && (
+        <p role="status" className="text-green-400 text-xs font-bold text-center">
+          {msg.ok}
+        </p>
+      )}
+      <button
+        type="submit"
+        disabled={busy}
+        className="w-full bg-orange-600 text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-sm hover:bg-white hover:text-blue-900 transition-all shadow-xl shadow-orange-600/20 disabled:opacity-60"
+      >
+        {busy ? "Sending…" : "Send reset link"}
+      </button>
+      <button
+        type="button"
+        onClick={onBack}
+        className="w-full text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-white"
+      >
+        Back to login
+      </button>
+    </form>
   );
 }

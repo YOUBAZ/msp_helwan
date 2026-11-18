@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   Res,
+  ServiceUnavailableException,
   StreamableFile,
   UploadedFile,
   UseInterceptors,
@@ -21,6 +22,7 @@ import { AuthService } from './auth.service';
 import type { CurrentUser } from './current-user';
 import {
   ChangePasswordDto,
+  ForgotPasswordDto,
   LoginDto,
   RedeemTokenDto,
   UpdateMeDto,
@@ -107,6 +109,23 @@ export class AuthController {
   @Throttle(STRICT)
   changePassword(@Me() me: CurrentUser, @Body() dto: ChangePasswordDto) {
     return this.auth.changePassword(me, dto.currentPassword, dto.newPassword);
+  }
+
+  /** Public: email a password-reset link (same reply whether or not the account exists). */
+  @Post('auth/forgot-password')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: 3 } })
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    if (!this.tokens.emailEnabled) {
+      throw new ServiceUnavailableException(
+        'Password reset by email is not available yet. Ask a board member for a reset link.',
+      );
+    }
+    await this.tokens.requestReset(dto.email);
+    return {
+      message:
+        'If an account exists for this email, a reset link is on its way. Check your inbox (and spam folder).',
+    };
   }
 
   /** Public: check an invitation / reset link before showing the form. */

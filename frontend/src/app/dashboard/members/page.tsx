@@ -23,7 +23,7 @@ import type { Invite, Member, Role } from "@/lib/types";
 
 type Dialog =
   | { kind: "invite" }
-  | { kind: "link"; title: string; link: string; note: string }
+  | { kind: "link"; title: string; link: string; note: string; emailedTo?: string }
   | { kind: "roles"; member: Member }
   | { kind: "profile"; member: Member }
   | null;
@@ -86,14 +86,18 @@ export default function MembersPage() {
 
   const resetLink = (m: Member) =>
     act(async () => {
-      const res = await call<{ link: string }>(`/members/${m.id}/reset-link`, {
-        method: "POST",
-      });
+      const res = await call<{ link: string; emailSent: boolean }>(
+        `/members/${m.id}/reset-link`,
+        { method: "POST" },
+      );
       setDialog({
         kind: "link",
         title: "Password reset link",
         link: res.link,
-        note: `Send this to ${m.name}. It works once and expires in 24 hours. Their current sessions end when they use it.`,
+        emailedTo: res.emailSent ? m.email : undefined,
+        note: res.emailSent
+          ? "Backup: if the email doesn't arrive (check spam), copy this link and send it yourself. It works once and expires in 24 hours."
+          : `Send this to ${m.name}. It works once and expires in 24 hours. Their current sessions end when they use it.`,
       });
     });
 
@@ -271,13 +275,16 @@ export default function MembersPage() {
         <InviteDialog
           roles={roles}
           onClose={() => setDialog(null)}
-          onCreated={(link, email) => {
+          onCreated={(link, email, emailSent) => {
             void load();
             setDialog({
               kind: "link",
               title: "Invitation created",
               link,
-              note: `Send this link to ${email} (WhatsApp or email). They open it, choose a password, and their account is ready. It works once and expires in 7 days.`,
+              emailedTo: emailSent ? email : undefined,
+              note: emailSent
+                ? "Backup: if the email doesn't arrive (check spam), copy this link and send it on WhatsApp. It works once and expires in 7 days."
+                : `Send this link to ${email} (WhatsApp or email). They open it, choose a password, and their account is ready. It works once and expires in 7 days.`,
             });
           }}
         />
@@ -298,6 +305,11 @@ export default function MembersPage() {
       )}
       {dialog?.kind === "link" && (
         <Modal title={dialog.title} onClose={() => setDialog(null)}>
+          {dialog.emailedTo && (
+            <p className="mb-5 p-4 rounded-2xl bg-green-50 border border-green-200 text-green-800 text-sm font-bold">
+              ✓ Emailed to {dialog.emailedTo}
+            </p>
+          )}
           <LinkBox link={dialog.link} note={dialog.note} />
         </Modal>
       )}
@@ -312,7 +324,7 @@ function InviteDialog({
 }: {
   roles: Role[];
   onClose: () => void;
-  onCreated: (link: string, email: string) => void;
+  onCreated: (link: string, email: string, emailSent: boolean) => void;
 }) {
   const { call } = useAuth();
   const member = roles.find((r) => r.name === "Member");
@@ -329,11 +341,11 @@ function InviteDialog({
     setBusy(true);
     setError("");
     try {
-      const res = await call<{ link: string }>("/invites", {
+      const res = await call<{ link: string; emailSent: boolean }>("/invites", {
         method: "POST",
         body: JSON.stringify(form),
       });
-      onCreated(res.link, form.email);
+      onCreated(res.link, form.email, res.emailSent);
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);

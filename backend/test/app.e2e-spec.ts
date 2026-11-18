@@ -4,6 +4,7 @@ import { hashSync } from 'bcryptjs';
 import request from 'supertest';
 import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
+import { type Mail, MailService } from '../src/mail/mail.service';
 
 type Role = {
   id: string;
@@ -51,7 +52,12 @@ describe('MSP Helwan API (e2e)', () => {
       .set(bearer(by))
       .send({ email, name: 'New Person', roleIds })
       .expect(201);
-    const token = (inv.body as { link: string }).link.split('/').pop()!;
+    const body = inv.body as { link: string; emailSent: boolean };
+    expect(body.emailSent).toBe(true);
+    const mail = lastMailTo(email)!;
+    expect(mail.subject).toMatch(/invited/);
+    expect(mail.text).toContain(body.link);
+    const token = body.link.split('/').pop()!;
     const info = await http().get(`/api/auth/links/${token}`).expect(200);
     expect(info.body).toMatchObject({ type: 'invite', email });
     const joined = await http()
@@ -62,6 +68,17 @@ describe('MSP Helwan API (e2e)', () => {
   };
 
   let president: string;
+  const outbox: Mail[] = [];
+  const fakeMail = {
+    enabled: true,
+    notifyTo: 'club@test.dev',
+    send: (m: Mail) => {
+      outbox.push(m);
+      return Promise.resolve(true);
+    },
+  };
+  const lastMailTo = (to: string) =>
+    [...outbox].reverse().find((m) => m.to === to);
 
   beforeAll(async () => {
     process.env.DATA_DIR = 'memory://';
@@ -70,9 +87,10 @@ describe('MSP Helwan API (e2e)', () => {
     process.env.JWT_SECRET = 'test-secret';
     process.env.FRONTEND_URL = 'https://site.test';
     process.env.BOARD_ACCOUNTS = `boss@test.dev:${hashSync('s3cret!!', 4)}`;
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(MailService)
+      .useValue(fakeMail)
+      .compile();
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');
     app.useGlobalPipes(
@@ -104,6 +122,22 @@ describe('MSP Helwan API (e2e)', () => {
           message: 'How do I join?',
         })
         .expect(201);
+    });
+
+    it('emails the club about new messages, safely escaped, with reply-to', async () => {
+      await http()
+        .post('/api/contact')
+        .send({
+          name: 'Eve <script>',
+          email: 'eve@example.com',
+          message: 'Hello <b>club</b>',
+        })
+        .expect(201);
+      const m = lastMailTo('club@test.dev')!;
+      expect(m.replyTo).toContain('eve@example.com');
+      expect(m.html).not.toContain('<script>');
+      expect(m.html).toContain('&#60;b&#62;club');
+      expect(m.text).toContain('Hello <b>club</b>');
     });
 
     it('dedupes newsletter sign-ups', async () => {
@@ -384,6 +418,28 @@ describe('MSP Helwan API (e2e)', () => {
       expect((await me(board)).id).toBeDefined();
     });
 
+    it('sends forgot-password emails without revealing who has an account', async () => {
+      const ask = (email: string) =>
+        http().post('/api/auth/forgot-password').send({ email }).expect(200);
+      const before = outbox.length;
+      const a = await ask('nobody@test.dev');
+      expect(outbox.length).toBe(before); // no mail for unknown emails...
+      const b = await ask('Board@test.dev');
+      expect((b.body as { message: string }).message).toBe(
+        (a.body as { message: string }).message, // ...but the same reply
+      );
+      const mail = lastMailTo('board@test.dev')!;
+      expect(mail.subject).toMatch(/Reset/);
+      const link = /https:\/\/site\.test\/set-password\/\S+/.exec(
+        mail.text,
+      )![0];
+      await http()
+        .post(`/api/auth/links/${link.split('/').pop()}`)
+        .send({ password: 'forgot-flow-pass' })
+        .expect(200);
+      board = await login('board@test.dev', 'forgot-flow-pass');
+    });
+
     it('disables accounts immediately', async () => {
       const boardId = (await me(board)).id;
       await http()
@@ -394,7 +450,7 @@ describe('MSP Helwan API (e2e)', () => {
       await http().get('/api/auth/me').set(bearer(board)).expect(401);
       await http()
         .post('/api/auth/login')
-        .send({ email: 'board@test.dev', password: 'third-pass-123' })
+        .send({ email: 'board@test.dev', password: 'forgot-flow-pass' })
         .expect(401);
     });
 

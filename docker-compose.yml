@@ -5,6 +5,7 @@
 #   docker compose down -v   delete everything, including the data
 #
 # pgAdmin: http://localhost:5050  (password for the server: msp_local_dev)
+# Mailpit: http://localhost:8025  (catches every email the local backend sends)
 name: msp-helwan
 
 services:
@@ -42,6 +43,13 @@ services:
     volumes:
       - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
       - pgadmin-data:/var/lib/pgadmin
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1025:1025" # SMTP (the backend sends here)
+      - "127.0.0.1:8025:8025" # web inbox
 
 volumes:
   db-data:
