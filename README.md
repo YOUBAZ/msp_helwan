@@ -94,6 +94,20 @@ Create **two Vercel projects from this same repo**:
 
 Redeploy the website after changing `NEXT_PUBLIC_API_URL` (it is baked in at build time).
 
+## Media page
+
+Albums, photos and videos are managed in **Dashboard → Media** by roles with the "Manage the Media page" permission. Photos are stored in the database (budget `MEDIA_BUDGET_BYTES`, default 400 MB); videos are YouTube / Facebook / Google Drive links.
+
+**One-time step after the first deploy of the Media feature:** copy the original 37 photos (still served from `frontend/public/images/events`) into the database:
+
+```bash
+cd backend
+DATABASE_URL="<your Neon connection string>" npm run media:import-legacy
+# -> Imported 37 photos (8.7 MB).   Running it again prints "Nothing to import".
+```
+
+After that, `frontend/public/images/events/` can be deleted so the old direct file addresses stop working.
+
 ## Tests
 
 ```bash
