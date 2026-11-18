@@ -1,5 +1,17 @@
 export type RoleRef = { id: string; name: string };
 
+export type Profile = {
+  phone: string | null;
+  birthday: string | null; // YYYY-MM-DD
+  gender: "male" | "female" | null;
+  linkedinUrl: string | null;
+  facebookUrl: string | null;
+  portfolioUrl: string | null;
+  /** Path relative to the API base, or null. */
+  avatarUrl: string | null;
+  complete: boolean;
+};
+
 export type Me = {
   id: string;
   email: string;
@@ -7,6 +19,7 @@ export type Me = {
   isPresident: boolean;
   roles: RoleRef[];
   permissions: string[];
+  profile: Profile;
 };
 
 export type Role = {
@@ -28,6 +41,7 @@ export type Member = {
   createdAt: string;
   lastLoginAt: string | null;
   roles: RoleRef[];
+  profile: Profile;
 };
 
 export type Invite = {

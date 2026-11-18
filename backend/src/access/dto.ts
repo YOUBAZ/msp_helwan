@@ -8,6 +8,7 @@ import {
   IsString,
   IsUUID,
   Length,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -32,6 +33,38 @@ export class UpdateMeDto {
   @IsString()
   @Length(2, 100, { message: 'Name must be 2–100 characters.' })
   name!: string;
+
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : value,
+  )
+  @IsString()
+  @Matches(/^\+?\d[\d\s-]{6,18}\d$/, {
+    message:
+      'Please enter a valid phone number (digits, optional + at the start).',
+  })
+  phone!: string;
+
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Please enter a valid birthday.' })
+  birthday!: string;
+
+  @IsIn(['male', 'female'], { message: 'Please choose a gender.' })
+  gender!: 'male' | 'female';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  linkedinUrl?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  facebookUrl?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  portfolioUrl?: string | null;
 }
 
 export class ChangePasswordDto {

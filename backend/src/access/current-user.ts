@@ -1,5 +1,6 @@
 import type { Request } from 'express';
 import type { Permission } from './permissions';
+import type { Profile } from './profile';
 
 export type CurrentUser = {
   id: string;
@@ -8,6 +9,7 @@ export type CurrentUser = {
   isPresident: boolean;
   roles: { id: string; name: string }[];
   permissions: Set<Permission>;
+  profile: Profile;
 };
 
 export type AuthedRequest = Request & { user: CurrentUser };

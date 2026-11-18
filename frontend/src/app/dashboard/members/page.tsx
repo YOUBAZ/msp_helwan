@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { KeyRound, Pencil, UserPlus, X } from "lucide-react";
+import { Eye, KeyRound, Pencil, UserPlus, X } from "lucide-react";
+import Avatar from "@/components/dashboard/Avatar";
 import RolePicker from "@/components/dashboard/RolePicker";
 import {
   Badge,
@@ -24,6 +25,7 @@ type Dialog =
   | { kind: "invite" }
   | { kind: "link"; title: string; link: string; note: string }
   | { kind: "roles"; member: Member }
+  | { kind: "profile"; member: Member }
   | null;
 
 export default function MembersPage() {
@@ -41,7 +43,9 @@ export default function MembersPage() {
       const [m, r, i] = await Promise.all([
         call<Member[]>("/members"),
         call<Role[]>("/roles"),
-        can("members.invite") ? call<Invite[]>("/invites") : Promise.resolve([]),
+        can("members.invite")
+          ? call<Invite[]>("/invites")
+          : Promise.resolve([]),
       ]);
       setMembers(m);
       setRoles(r);
@@ -67,16 +71,24 @@ export default function MembersPage() {
 
   const toggleStatus = (m: Member) => {
     const next = m.status === "active" ? "disabled" : "active";
-    if (next === "disabled" && !confirm(`Disable ${m.name}? They will be signed out immediately.`))
+    if (
+      next === "disabled" &&
+      !confirm(`Disable ${m.name}? They will be signed out immediately.`)
+    )
       return;
     void act(() =>
-      call(`/members/${m.id}/status`, { method: "PATCH", body: JSON.stringify({ status: next }) }),
+      call(`/members/${m.id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: next }),
+      }),
     );
   };
 
   const resetLink = (m: Member) =>
     act(async () => {
-      const res = await call<{ link: string }>(`/members/${m.id}/reset-link`, { method: "POST" });
+      const res = await call<{ link: string }>(`/members/${m.id}/reset-link`, {
+        method: "POST",
+      });
       setDialog({
         kind: "link",
         title: "Password reset link",
@@ -98,7 +110,10 @@ export default function MembersPage() {
         title="Members"
         action={
           can("members.invite") && (
-            <Button variant="accent" onClick={() => setDialog({ kind: "invite" })}>
+            <Button
+              variant="accent"
+              onClick={() => setDialog({ kind: "invite" })}
+            >
               <UserPlus size={16} /> Invite member
             </Button>
           )
@@ -118,7 +133,9 @@ export default function MembersPage() {
                   : "bg-white text-slate-600 hover:text-orange-600"
               }`}
             >
-              {t === "members" ? `Members (${members?.length ?? 0})` : `Pending invites (${invites.length})`}
+              {t === "members"
+                ? `Members (${members?.length ?? 0})`
+                : `Pending invites (${invites.length})`}
             </button>
           ))}
         {tab === "members" && (
@@ -145,17 +162,25 @@ export default function MembersPage() {
             {shown.map((m) => (
               <Card key={m.id} className="p-5 md:p-6">
                 <div className="flex flex-col md:flex-row md:items-center gap-4">
+                  <Avatar name={m.name} url={m.profile.avatarUrl} size="md" />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h4 className="font-black text-blue-900">{m.name}</h4>
                       {m.id === me.id && <Badge tone="slate">You</Badge>}
-                      {m.status === "disabled" && <Badge tone="red">Disabled</Badge>}
+                      {m.status === "disabled" && (
+                        <Badge tone="red">Disabled</Badge>
+                      )}
                     </div>
-                    <p className="text-sm text-slate-500 break-all">{m.email}</p>
+                    <p className="text-sm text-slate-500 break-all">
+                      {m.email}
+                    </p>
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {m.roles.length ? (
                         m.roles.map((r) => (
-                          <Badge key={r.id} tone={r.name === "President" ? "orange" : "blue"}>
+                          <Badge
+                            key={r.id}
+                            tone={r.name === "President" ? "orange" : "blue"}
+                          >
                             {r.name}
                           </Badge>
                         ))
@@ -167,24 +192,40 @@ export default function MembersPage() {
                       Last login: {fmtDate(m.lastLoginAt)}
                     </p>
                   </div>
-                  {can("members.manage") && (
-                    <div className="flex flex-wrap gap-2 shrink-0">
-                      <Button variant="ghost" onClick={() => setDialog({ kind: "roles", member: m })}>
-                        <Pencil size={14} /> Roles
-                      </Button>
-                      <Button variant="ghost" onClick={() => void resetLink(m)}>
-                        <KeyRound size={14} /> Reset link
-                      </Button>
-                      {m.id !== me.id && (
+                  <div className="flex flex-wrap gap-2 shrink-0">
+                    <Button
+                      variant="ghost"
+                      onClick={() => setDialog({ kind: "profile", member: m })}
+                    >
+                      <Eye size={14} /> Profile
+                    </Button>
+                    {can("members.manage") && (
+                      <>
                         <Button
-                          variant={m.status === "active" ? "danger" : "ghost"}
-                          onClick={() => toggleStatus(m)}
+                          variant="ghost"
+                          onClick={() =>
+                            setDialog({ kind: "roles", member: m })
+                          }
                         >
-                          {m.status === "active" ? "Disable" : "Enable"}
+                          <Pencil size={14} /> Roles
                         </Button>
-                      )}
-                    </div>
-                  )}
+                        <Button
+                          variant="ghost"
+                          onClick={() => void resetLink(m)}
+                        >
+                          <KeyRound size={14} /> Reset link
+                        </Button>
+                        {m.id !== me.id && (
+                          <Button
+                            variant={m.status === "active" ? "danger" : "ghost"}
+                            onClick={() => toggleStatus(m)}
+                          >
+                            {m.status === "active" ? "Disable" : "Enable"}
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               </Card>
             ))}
@@ -195,7 +236,10 @@ export default function MembersPage() {
       ) : (
         <div className="space-y-3">
           {invites.map((i) => (
-            <Card key={i.id} className="p-5 md:p-6 flex flex-col md:flex-row md:items-center gap-4">
+            <Card
+              key={i.id}
+              className="p-5 md:p-6 flex flex-col md:flex-row md:items-center gap-4"
+            >
               <div className="min-w-0 flex-1">
                 <h4 className="font-black text-blue-900">{i.name}</h4>
                 <p className="text-sm text-slate-500 break-all">{i.email}</p>
@@ -205,7 +249,8 @@ export default function MembersPage() {
                   ))}
                 </div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-2">
-                  Invited by {i.invitedBy ?? "—"} · expires {fmtDate(i.expiresAt)}
+                  Invited by {i.invitedBy ?? "—"} · expires{" "}
+                  {fmtDate(i.expiresAt)}
                 </p>
               </div>
               <Button
@@ -248,6 +293,9 @@ export default function MembersPage() {
           }}
         />
       )}
+      {dialog?.kind === "profile" && (
+        <ProfileDialog member={dialog.member} onClose={() => setDialog(null)} />
+      )}
       {dialog?.kind === "link" && (
         <Modal title={dialog.title} onClose={() => setDialog(null)}>
           <LinkBox link={dialog.link} note={dialog.note} />
@@ -268,7 +316,11 @@ function InviteDialog({
 }) {
   const { call } = useAuth();
   const member = roles.find((r) => r.name === "Member");
-  const [form, setForm] = useState({ name: "", email: "", roleIds: member ? [member.id] : [] });
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    roleIds: member ? [member.id] : [],
+  });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -378,6 +430,101 @@ function EditRolesDialog({
           <Button onClick={save} disabled={busy}>
             {busy ? "Saving…" : "Save roles"}
           </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function ProfileDialog({
+  member,
+  onClose,
+}: {
+  member: Member;
+  onClose: () => void;
+}) {
+  const p = member.profile;
+  const birthday = p.birthday
+    ? new Date(`${p.birthday}T00:00:00`).toLocaleDateString("en-GB", {
+        dateStyle: "long",
+      })
+    : null;
+  const rows: [string, React.ReactNode][] = [
+    [
+      "Email",
+      <a
+        key="e"
+        href={`mailto:${member.email}`}
+        className="hover:text-orange-600 break-all"
+      >
+        {member.email}
+      </a>,
+    ],
+    [
+      "Phone",
+      p.phone ? (
+        <a
+          key="p"
+          href={`tel:${p.phone.replace(/\s/g, "")}`}
+          className="hover:text-orange-600"
+        >
+          {p.phone}
+        </a>
+      ) : null,
+    ],
+    ["Birthday", birthday],
+    ["Gender", p.gender ? p.gender[0].toUpperCase() + p.gender.slice(1) : null],
+    ["LinkedIn", p.linkedinUrl],
+    ["Facebook", p.facebookUrl],
+    ["Portfolio", p.portfolioUrl],
+  ];
+  return (
+    <Modal title="Member profile" onClose={onClose}>
+      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+        <Avatar name={member.name} url={p.avatarUrl} size="lg" />
+        <div className="min-w-0 flex-1 w-full">
+          <h4 className="text-2xl font-black text-blue-900">{member.name}</h4>
+          <div className="flex flex-wrap gap-1.5 mt-2 mb-5">
+            {member.roles.map((r) => (
+              <Badge
+                key={r.id}
+                tone={r.name === "President" ? "orange" : "blue"}
+              >
+                {r.name}
+              </Badge>
+            ))}
+          </div>
+          <dl className="divide-y divide-slate-100">
+            {rows.map(([label, value]) => (
+              <div
+                key={label}
+                className="py-2.5 grid grid-cols-[100px_1fr] gap-3 text-sm"
+              >
+                <dt className="text-[10px] font-black uppercase tracking-widest text-slate-400 pt-0.5">
+                  {label}
+                </dt>
+                <dd className="text-slate-800 font-medium min-w-0 break-words">
+                  {value == null ? (
+                    <span className="text-slate-400">Not provided</span>
+                  ) : typeof value === "string" &&
+                    value.startsWith("https://") ? (
+                    <a
+                      href={value}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-700 hover:text-orange-600 break-all"
+                    >
+                      {value
+                        .replace(/^https:\/\/(www\.)?/, "")
+                        .replace(/\/$/, "")}
+                    </a>
+                  ) : (
+                    value
+                  )}
+                </dd>
+              </div>
+            ))}
+          </dl>
         </div>
       </div>
     </Modal>

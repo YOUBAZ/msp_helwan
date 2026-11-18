@@ -10,6 +10,7 @@ import { DB, type Database } from '../db/database';
 import { rolePermissions, roles, userRoles, users } from '../db/schema';
 import { type CurrentUser, hasAll } from './current-user';
 import { ALL_PERMISSIONS, isPermission, type Permission } from './permissions';
+import { profileOf } from './profile';
 import { RolesService } from './roles.service';
 import type { PublicUser } from './serialize';
 
@@ -71,6 +72,7 @@ export class UsersService {
       isPresident,
       roles: myRoles.map(({ id, name }) => ({ id, name })),
       permissions: new Set(permissions),
+      profile: profileOf(u),
     };
   }
 
@@ -91,6 +93,7 @@ export class UsersService {
       roles: links
         .filter((l) => l.userId === u.id)
         .map(({ id, name }) => ({ id, name })),
+      profile: profileOf(u),
     }));
   }
 
@@ -210,9 +213,5 @@ export class UsersService {
       .update(users)
       .set({ status, tokenVersion: sql`${users.tokenVersion} + 1` })
       .where(eq(users.id, userId));
-  }
-
-  async updateName(userId: string, name: string) {
-    await this.db.update(users).set({ name }).where(eq(users.id, userId));
   }
 }

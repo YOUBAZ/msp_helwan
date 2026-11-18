@@ -7,6 +7,7 @@ import { AuthGuard } from './auth.guard';
 import { AuthService } from './auth.service';
 import { BootstrapService } from './bootstrap.service';
 import { MembersController } from './members.controller';
+import { ProfileService } from './profile.service';
 import { RolesController } from './roles.controller';
 import { RolesService } from './roles.service';
 import { TokensService } from './tokens.service';
@@ -39,6 +40,7 @@ import { UsersService } from './users.service';
     AuthGuard,
     AuthService,
     BootstrapService,
+    ProfileService,
     RolesService,
     TokensService,
     UsersService,

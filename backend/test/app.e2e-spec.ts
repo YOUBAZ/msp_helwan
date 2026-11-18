@@ -16,6 +16,7 @@ type Me = {
   isPresident: boolean;
   permissions: string[];
   roles: Role[];
+  profile: Record<string, unknown> & { complete: boolean };
 };
 
 describe('MSP Helwan API (e2e)', () => {
@@ -287,12 +288,85 @@ describe('MSP Helwan API (e2e)', () => {
       board = await login('board@test.dev', 'brand-new-pass');
     });
 
-    it('lets members change their own name and password', async () => {
-      await http()
+    it('validates and saves the profile', async () => {
+      const base = {
+        name: 'Board Person',
+        phone: '+20 100 123 4567',
+        birthday: '2003-05-14',
+        gender: 'female',
+      };
+      const bad = async (patch: object, msg: RegExp) => {
+        const r = await http()
+          .patch('/api/auth/me')
+          .set(bearer(board))
+          .send({ ...base, ...patch })
+          .expect(400);
+        expect(JSON.stringify(r.body)).toMatch(msg);
+      };
+      expect((await me(board)).profile.complete).toBe(false);
+      await bad({ phone: 'call me' }, /phone/);
+      await bad({ birthday: '2003-02-30' }, /birthday/);
+      await bad({ birthday: '2030-01-01' }, /birthday/);
+      await bad({ gender: 'robot' }, /gender/);
+      await bad({ linkedinUrl: 'https://example.com/me' }, /LinkedIn link/);
+      await bad({ facebookUrl: 'twitter.com/x' }, /Facebook link/);
+      const ok = await http()
         .patch('/api/auth/me')
         .set(bearer(board))
-        .send({ name: 'Board Person' })
+        .send({
+          ...base,
+          linkedinUrl: 'linkedin.com/in/board-person',
+          facebookUrl: '',
+          portfolioUrl: 'board.dev',
+        })
         .expect(200);
+      const profile = (ok.body as Me).profile;
+      expect(profile).toMatchObject({
+        phone: '+20 100 123 4567',
+        birthday: '2003-05-14',
+        gender: 'female',
+        linkedinUrl: 'https://linkedin.com/in/board-person',
+        facebookUrl: null,
+        portfolioUrl: 'https://board.dev/',
+        avatarUrl: null,
+        complete: true,
+      });
+    });
+
+    it('uploads, serves and removes a profile photo', async () => {
+      const png = Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+        'base64',
+      );
+      await http()
+        .post('/api/auth/me/avatar')
+        .set(bearer(board))
+        .attach('file', Buffer.from('not really an image'), 'evil.png')
+        .expect(400);
+      const up = await http()
+        .post('/api/auth/me/avatar')
+        .set(bearer(board))
+        .attach('file', png, 'me.png')
+        .expect(201);
+      const url = (up.body as { avatarUrl: string }).avatarUrl;
+      expect(url).toMatch(/^\/users\/[0-9a-f-]+\/avatar\?v=1$/);
+      const img = await http().get(`/api${url}`).expect(200);
+      expect(img.headers['content-type']).toBe('image/png');
+      expect(Buffer.compare(img.body as Buffer, png)).toBe(0);
+      // Visible to people who can view members
+      const list = await http()
+        .get('/api/members')
+        .set(bearer(president))
+        .expect(200);
+      const mine = (
+        list.body as { email: string; profile: { avatarUrl: string } }[]
+      ).find((m) => m.email === 'board@test.dev');
+      expect(mine?.profile.avatarUrl).toBe(url);
+      await http().delete('/api/auth/me/avatar').set(bearer(board)).expect(204);
+      await http().get(`/api${url}`).expect(404);
+    });
+
+    it('lets members change their own password', async () => {
       await http()
         .post('/api/auth/me/password')
         .set(bearer(board))

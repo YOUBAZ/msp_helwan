@@ -70,4 +70,23 @@ CREATE TABLE subscribers (
 );
 `,
   },
+  {
+    id: '002_profiles',
+    sql: `
+ALTER TABLE users ADD COLUMN phone text;
+ALTER TABLE users ADD COLUMN birthday date;
+ALTER TABLE users ADD COLUMN gender text;
+ALTER TABLE users ADD COLUMN linkedin_url text;
+ALTER TABLE users ADD COLUMN facebook_url text;
+ALTER TABLE users ADD COLUMN portfolio_url text;
+ALTER TABLE users ADD COLUMN avatar_version integer NOT NULL DEFAULT 0;
+
+CREATE TABLE user_avatars (
+  user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  mime text NOT NULL,
+  data bytea NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+`,
+  },
 ];

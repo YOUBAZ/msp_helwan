@@ -1,5 +1,7 @@
 import {
   boolean,
+  customType,
+  date,
   integer,
   jsonb,
   pgTable,
@@ -26,6 +28,31 @@ export const users = pgTable('users', {
   tokenVersion: integer('token_version').notNull().default(0),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   createdAt: createdAt(),
+  // Profile
+  phone: text('phone'),
+  birthday: date('birthday'), // 'YYYY-MM-DD'
+  gender: text('gender').$type<'male' | 'female'>(),
+  linkedinUrl: text('linkedin_url'),
+  facebookUrl: text('facebook_url'),
+  portfolioUrl: text('portfolio_url'),
+  /** 0 = no photo. Bumped on every upload so browsers fetch the new image. */
+  avatarVersion: integer('avatar_version').notNull().default(0),
+});
+
+const bytea = customType<{ data: Buffer; driverData: Buffer | Uint8Array }>({
+  dataType: () => 'bytea',
+  fromDriver: (v) => (Buffer.isBuffer(v) ? v : Buffer.from(v)),
+});
+
+export const userAvatars = pgTable('user_avatars', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  mime: text('mime').notNull(),
+  data: bytea('data').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 export const roles = pgTable('roles', {

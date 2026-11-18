@@ -27,6 +27,15 @@ export default function Overview() {
   return (
     <>
       <PageTitle eyebrow="Squad Dashboard" title={`Hi, ${me.name.split(" ")[0]}`} />
+      {!me.profile.complete && (
+        <Link
+          href="/dashboard/profile"
+          className="mb-6 flex items-center justify-between gap-4 p-5 rounded-2xl bg-orange-50 border border-orange-200 text-orange-800 font-bold hover:bg-orange-100 transition-colors"
+        >
+          <span>Complete your profile: add your phone, birthday, gender and a photo.</span>
+          <ArrowRight size={18} className="shrink-0" />
+        </Link>
+      )}
       <div className="grid md:grid-cols-2 gap-6">
         <Card className="p-8">
           <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">

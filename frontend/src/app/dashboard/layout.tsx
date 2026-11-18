@@ -11,6 +11,7 @@ import {
   UserCircle,
   Users,
 } from "lucide-react";
+import Avatar from "@/components/dashboard/Avatar";
 import { AuthProvider, useAuth } from "@/lib/auth";
 
 const NAV = [
@@ -32,11 +33,14 @@ function Shell({ children }: { children: React.ReactNode }) {
       <div className="container mx-auto px-4 md:px-6 grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-8">
         <aside className="lg:sticky lg:top-28 self-start min-w-0">
           <div className="bg-[#0f172a] rounded-[2rem] p-4 shadow-xl">
-            <div className="px-3 py-4 border-b border-white/5 mb-3">
-              <p className="text-white font-black truncate">{me.name}</p>
-              <p className="text-[10px] font-black uppercase tracking-widest text-orange-500 truncate">
-                {me.roles.map((r) => r.name).join(" · ") || "No role yet"}
-              </p>
+            <div className="px-3 py-4 border-b border-white/5 mb-3 flex items-center gap-3">
+              <Avatar name={me.name} url={me.profile.avatarUrl} />
+              <div className="min-w-0">
+                <p className="text-white font-black truncate">{me.name}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-orange-500 truncate">
+                  {me.roles.map((r) => r.name).join(" · ") || "No role yet"}
+                </p>
+              </div>
             </div>
             <nav className="flex lg:flex-col gap-1 overflow-x-auto pb-1 lg:pb-0">
               {items.map(({ href, label, Icon }) => {

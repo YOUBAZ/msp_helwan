@@ -13,7 +13,8 @@ export async function api<T = unknown>(
     res = await fetch(`${API_URL}${path}`, {
       ...rest,
       headers: {
-        "Content-Type": "application/json",
+        // Let the browser set the multipart boundary for file uploads.
+        ...(rest.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...headers,
       },
@@ -30,3 +31,6 @@ export async function api<T = unknown>(
 }
 
 export const TOKEN_KEY = "msp_board_token";
+
+/** Full URL for an API-relative path such as a profile photo. */
+export const apiUrl = (path: string) => `${API_URL}${path}`;
