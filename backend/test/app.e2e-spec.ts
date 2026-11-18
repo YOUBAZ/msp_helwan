@@ -758,5 +758,236 @@ describe('MSP Tech Club API (e2e)', () => {
         '/images/events/orientation/12.jpg',
       );
     });
+
+    const PNG = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+      'base64',
+    );
+    const A = (path: string) => `/api/admin/media${path}`;
+    const newAlbum = async (title: string, category = 'Hackathon') =>
+      (
+        await http()
+          .post(A('/albums'))
+          .set(bearer(president))
+          .send({ title, category })
+          .expect(201)
+      ).body as Album;
+    const uploadPhoto = (albumId: string, file = PNG) =>
+      http()
+        .post(A(`/albums/${albumId}/photos`))
+        .set(bearer(president))
+        .attach('full', file, 'full.png')
+        .attach('small', file, 'small.png');
+    const adminAlbum = async (id: string) =>
+      (
+        (await http().get(A('/albums')).set(bearer(president)).expect(200))
+          .body as Album[]
+      ).find((a) => a.id === id)!;
+
+    it('requires media.manage', async () => {
+      const m = await login('member@test.dev', 'password123');
+      await http().get(A('/albums')).set(bearer(m)).expect(403);
+      await http()
+        .post(A('/albums'))
+        .set(bearer(m))
+        .send({ title: 'X album', category: 'Event' })
+        .expect(403);
+    });
+
+    it('creates a hidden album at the top and publishes it', async () => {
+      const album = await newAlbum('Hackathon 2026');
+      expect(album.published).toBe(false);
+      expect((await publicAlbums()).some((a) => a.id === album.id)).toBe(false);
+      const item = (await uploadPhoto(album.id).expect(201)).body as Item;
+      expect(item.kind).toBe('photo');
+      await http()
+        .patch(A(`/albums/${album.id}`))
+        .set(bearer(president))
+        .send({ published: true })
+        .expect(200);
+      const first = (await publicAlbums())[0];
+      expect(first.id).toBe(album.id);
+      expect(first.items[0].photo?.origin).toBe('api');
+      expect(first.items[0].photo?.full).toBe(`/media/photos/${item.id}/full`);
+    });
+
+    it('hides photos of hidden albums', async () => {
+      const album = await newAlbum('Secret album');
+      const item = (await uploadPhoto(album.id).expect(201)).body as Item;
+      await http().get(`/api/media/photos/${item.id}/full`).expect(404);
+      const tokenUrl = (await adminAlbum(album.id)).items[0].photo!.full;
+      expect(tokenUrl).toMatch(/\?t=/);
+      const viaToken = await http().get(`/api${tokenUrl}`).expect(200);
+      expect(viaToken.headers['content-type']).toBe('image/png');
+      expect(viaToken.headers['cache-control']).toContain('no-store');
+      await http()
+        .get(`/api/media/photos/${item.id}/full?t=forged`)
+        .expect(404);
+      await http()
+        .patch(A(`/albums/${album.id}`))
+        .set(bearer(president))
+        .send({ published: true })
+        .expect(200);
+      const pub = await http()
+        .get(`/api/media/photos/${item.id}/small`)
+        .expect(200);
+      expect(pub.headers['cache-control']).toContain('max-age=3600');
+      expect(Buffer.compare(pub.body as Buffer, PNG)).toBe(0);
+    });
+
+    it('rejects non-images and oversized files', async () => {
+      const album = await newAlbum('Validation album');
+      await uploadPhoto(album.id, Buffer.from('not an image at all')).expect(
+        400,
+      );
+      const big = Buffer.concat([PNG, Buffer.alloc(2 * 1024 * 1024 + 1)]);
+      const r = await uploadPhoto(album.id, big);
+      expect([400, 413]).toContain(r.status);
+      await http()
+        .post(A(`/albums/${album.id}/photos`))
+        .set(bearer(president))
+        .attach('full', PNG, 'full.png')
+        .expect(400); // small version missing
+    });
+
+    it('adds video links', async () => {
+      const album = await newAlbum('Video album');
+      const v = (
+        await http()
+          .post(A(`/albums/${album.id}/videos`))
+          .set(bearer(president))
+          .send({ url: 'https://youtu.be/dQw4w9WgXcQ' })
+          .expect(201)
+      ).body as Item;
+      expect(v.video).toMatchObject({
+        provider: 'youtube',
+        embedUrl: 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ',
+      });
+      await http()
+        .post(A(`/albums/${album.id}/videos`))
+        .set(bearer(president))
+        .send({ url: 'https://vimeo.com/1' })
+        .expect(400);
+    });
+
+    it('reorders and deletes', async () => {
+      const before = (await publicAlbums()).map((a) => a.title);
+      const second = (await publicAlbums())[1];
+      await http()
+        .post(A(`/albums/${second.id}/move`))
+        .set(bearer(president))
+        .send({ direction: 'up' })
+        .expect(204);
+      const after = (await publicAlbums()).map((a) => a.title);
+      expect(after.slice(0, 2)).toEqual([before[1], before[0]]);
+
+      const album = await newAlbum('Order album');
+      const p1 = (await uploadPhoto(album.id).expect(201)).body as Item;
+      const p2 = (await uploadPhoto(album.id).expect(201)).body as Item;
+      await http()
+        .post(A(`/items/${p2.id}/move`))
+        .set(bearer(president))
+        .send({ direction: 'up' })
+        .expect(204);
+      expect((await adminAlbum(album.id)).items.map((i) => i.id)).toEqual([
+        p2.id,
+        p1.id,
+      ]);
+      await http()
+        .delete(A(`/items/${p1.id}`))
+        .set(bearer(president))
+        .expect(204);
+      expect((await adminAlbum(album.id)).items.map((i) => i.id)).toEqual([
+        p2.id,
+      ]);
+      await http()
+        .patch(A(`/albums/${album.id}`))
+        .set(bearer(president))
+        .send({ published: true })
+        .expect(200);
+      await http()
+        .delete(A(`/albums/${album.id}`))
+        .set(bearer(president))
+        .expect(204);
+      await http().get(`/api/media/photos/${p2.id}/full`).expect(404);
+      expect(await adminAlbum(album.id)).toBeUndefined();
+    });
+
+    it('hides emptied albums publicly', async () => {
+      const album = await newAlbum('Soon empty');
+      const item = (await uploadPhoto(album.id).expect(201)).body as Item;
+      await http()
+        .patch(A(`/albums/${album.id}`))
+        .set(bearer(president))
+        .send({ published: true })
+        .expect(200);
+      expect((await publicAlbums()).some((a) => a.id === album.id)).toBe(true);
+      await http()
+        .delete(A(`/items/${item.id}`))
+        .set(bearer(president))
+        .expect(204);
+      expect((await publicAlbums()).some((a) => a.id === album.id)).toBe(false);
+    });
+
+    it('edits album details and validates them', async () => {
+      const album = await newAlbum('Typo albm');
+      const r = await http()
+        .patch(A(`/albums/${album.id}`))
+        .set(bearer(president))
+        .send({
+          title: 'Fixed album',
+          category: 'Event',
+          eventDate: '2026-03-01',
+        })
+        .expect(200);
+      expect(r.body).toMatchObject({
+        title: 'Fixed album',
+        category: 'Event',
+        eventDate: '2026-03-01',
+      });
+      await http()
+        .patch(A(`/albums/${album.id}`))
+        .set(bearer(president))
+        .send({ eventDate: null })
+        .expect(200);
+      await http()
+        .patch(A(`/albums/${album.id}`))
+        .set(bearer(president))
+        .send({ title: 'x' })
+        .expect(400);
+    });
+
+    it('refuses uploads over the media budget', async () => {
+      const usage = (
+        await http().get(A('/usage')).set(bearer(president)).expect(200)
+      ).body as { usedBytes: number; budgetBytes: number };
+      expect(usage.usedBytes).toBeGreaterThan(0);
+      expect(usage.budgetBytes).toBe(400 * 1024 * 1024);
+      const album = await newAlbum('Budget album');
+      process.env.MEDIA_BUDGET_BYTES = String(usage.usedBytes + 100);
+      try {
+        const r = await uploadPhoto(album.id).expect(413);
+        expect(JSON.stringify(r.body)).toContain('Media storage is full');
+      } finally {
+        delete process.env.MEDIA_BUDGET_BYTES;
+      }
+      await uploadPhoto(album.id).expect(201);
+    });
+
+    it('lists categories', async () => {
+      const cats = (
+        await http().get(A('/categories')).set(bearer(president)).expect(200)
+      ).body as string[];
+      expect(cats).toEqual(
+        expect.arrayContaining([
+          'Awards',
+          'Contest',
+          'Event',
+          'Hackathon',
+          'Workshop',
+        ]),
+      );
+      expect([...cats].sort()).toEqual(cats);
+    });
   });
 });

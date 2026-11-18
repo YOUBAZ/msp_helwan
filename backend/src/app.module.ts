@@ -9,6 +9,7 @@ import { HealthController } from './health/health.controller';
 import { HierarchyModule } from './hierarchy/hierarchy.module';
 import { InboxModule } from './inbox/inbox.module';
 import { MailModule } from './mail/mail.module';
+import { MediaModule } from './media/media.module';
 import { NewsletterModule } from './newsletter/newsletter.module';
 
 @Module({
@@ -26,6 +27,7 @@ import { NewsletterModule } from './newsletter/newsletter.module';
     NewsletterModule,
     InboxModule,
     HierarchyModule,
+    MediaModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
