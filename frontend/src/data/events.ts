@@ -1,19 +1,3 @@
-const range = (folder: string, count: number) =>
-  Array.from({ length: count }, (_, i) => `/images/events/${folder}/${i + 1}.jpg`);
-
-export type Album = { title: string; images: string[]; category: string };
-
-export const albums: Album[] = [
-  { title: "Orientation Day 2025", images: range("orientation", 12), category: "Event" },
-  { title: "AI Catalyst 2025", images: range("ai", 8), category: "Workshop" },
-  {
-    title: "Problem Solving Competition 2025",
-    images: range("problem", 5),
-    category: "Contest",
-  },
-  { title: "Best Heads & Members 2025", images: range("best", 12), category: "Awards" },
-];
-
 export const upcomingEvents = [
   {
     title: "Board Recruitment 2026",

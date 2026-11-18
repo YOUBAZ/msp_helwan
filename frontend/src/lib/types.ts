@@ -92,3 +92,27 @@ export type HierarchyPosition = {
 };
 
 export type HierarchyTree = { season: Season; positions: HierarchyPosition[] };
+
+/** "site" = file served by the website; "api" = path relative to the API base. */
+export type MediaPhoto = { full: string; small: string; origin: "site" | "api" };
+
+export type MediaItem = {
+  id: string;
+  kind: "photo" | "video";
+  photo?: MediaPhoto;
+  video?: {
+    provider: "youtube" | "facebook" | "drive";
+    embedUrl: string;
+    thumbnailUrl: string | null;
+    sourceUrl: string;
+  };
+};
+
+export type MediaAlbum = {
+  id: string;
+  title: string;
+  category: string;
+  eventDate: string | null; // YYYY-MM-DD
+  published: boolean;
+  items: MediaItem[];
+};
