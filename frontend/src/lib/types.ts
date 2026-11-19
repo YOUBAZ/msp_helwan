@@ -117,6 +117,22 @@ export type MediaAlbum = {
   items: MediaItem[];
 };
 
+export type QuestionType = "short" | "paragraph" | "choice" | "checkboxes" | "dropdown" | "number" | "date" | "link";
+
+/** One question of an event's registration form. */
+export type Question = {
+  id: string;
+  type: QuestionType;
+  title: string;
+  help?: string;
+  required: boolean;
+  options?: string[];
+  other?: boolean;
+  driveOnly?: boolean;
+};
+
+export type Answers = Record<string, string | string[]>;
+
 export type PublicEvent = {
   id: string;
   title: string;
@@ -137,6 +153,7 @@ export type PublicEvent = {
   waitlisted: number;
   attendance: number | null;
   registration: "open" | "waitlist" | "closed";
+  form: Question[];
 };
 
 export type AdminEvent = PublicEvent & {
@@ -145,6 +162,8 @@ export type AdminEvent = PublicEvent & {
   registrationDeadline: string | null;
   manualAttendance: number | null;
   checkedIn: number;
+  /** Questions someone already answered (their type is locked). Single-event endpoint only. */
+  answeredQuestionIds?: string[];
 };
 
 export type EventLists = { upcoming: PublicEvent[]; live: PublicEvent[]; past: PublicEvent[] };

@@ -4,17 +4,28 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { registrationLabel, seatsLeft } from "@/lib/events";
-import type { PublicEvent } from "@/lib/types";
+import type { Answers, PublicEvent } from "@/lib/types";
+import FormFields from "./FormFields";
 
 const inputCls =
   "w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-900 outline-none";
 const labelCls = "text-[10px] font-black uppercase tracking-widest text-slate-500";
 
+/** Drop blank answers (the server treats them as unanswered anyway). */
+function cleanAnswers(a: Answers): Answers {
+  const out: Answers = {};
+  for (const [k, v] of Object.entries(a)) {
+    if (Array.isArray(v) ? v.length > 0 : v.trim() !== "") out[k] = v;
+  }
+  return out;
+}
+
 /** Live registration state (never cached) and the sign-up form. */
 export default function RegistrationBox({ initial }: { initial: PublicEvent }) {
   const router = useRouter();
   const [event, setEvent] = useState(initial);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", faculty: "", year: "", website: "" });
+  const [form, setForm] = useState({ name: "", email: "", website: "" });
+  const [answers, setAnswers] = useState<Answers>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -39,7 +50,7 @@ export default function RegistrationBox({ initial }: { initial: PublicEvent }) {
     try {
       const r = await api<{ ticketCode: string }>(`/events/${event.id}/register`, {
         method: "POST",
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, answers: cleanAnswers(answers) }),
       });
       router.push(`/tickets/${r.ticketCode}`);
     } catch (err) {
@@ -82,22 +93,11 @@ export default function RegistrationBox({ initial }: { initial: PublicEvent }) {
           <span className={labelCls}>Full name</span>
           <input required minLength={2} maxLength={100} autoComplete="name" value={form.name} onChange={set("name")} className={inputCls} />
         </label>
-        <label className="space-y-1.5">
+        <label className="space-y-1.5 sm:col-span-2">
           <span className={labelCls}>Email</span>
           <input required type="email" autoComplete="email" value={form.email} onChange={set("email")} className={inputCls} />
         </label>
-        <label className="space-y-1.5">
-          <span className={labelCls}>Phone</span>
-          <input required type="tel" autoComplete="tel" placeholder="+20 100 123 4567" value={form.phone} onChange={set("phone")} className={inputCls} />
-        </label>
-        <label className="space-y-1.5">
-          <span className={labelCls}>Faculty</span>
-          <input required minLength={2} maxLength={80} placeholder="e.g. Computer Science" value={form.faculty} onChange={set("faculty")} className={inputCls} />
-        </label>
-        <label className="space-y-1.5">
-          <span className={labelCls}>Academic year</span>
-          <input required maxLength={20} placeholder="e.g. 3" value={form.year} onChange={set("year")} className={inputCls} />
-        </label>
+        <FormFields form={event.form} answers={answers} onChange={setAnswers} idPrefix="reg" />
       </div>
       {/* Hidden from people; bots fill it in. */}
       <div aria-hidden="true" className="absolute -left-[9999px] w-px h-px overflow-hidden">
