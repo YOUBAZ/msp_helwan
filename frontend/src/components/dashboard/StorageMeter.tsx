@@ -1,9 +1,14 @@
+const ROOM_FOR_ONE_PHOTO = 1024 * 1024;
+
 const mb = (b: number) => `${(b / 1024 / 1024).toFixed(b < 10 * 1024 * 1024 ? 1 : 0)} MB`;
 
 /** Media storage used vs. the budget: orange from 80 %, red when full. */
 export default function StorageMeter({ used, budget }: { used: number; budget: number }) {
   const pct = budget > 0 ? Math.min(100, (used / budget) * 100) : 0;
-  const tone = pct >= 100 ? "bg-red-600" : pct >= 80 ? "bg-orange-500" : "bg-blue-900";
+  // A photo (full + small version) is usually under 1 MB: below that much
+  // free space the next upload will be refused, so show it as full.
+  const full = budget - used < ROOM_FOR_ONE_PHOTO;
+  const tone = full ? "bg-red-600" : pct >= 80 ? "bg-orange-500" : "bg-blue-900";
   return (
     <div className="bg-white rounded-[2rem] shadow-lg p-5 md:p-6 mb-6">
       <div className="flex items-baseline justify-between gap-4 mb-3">
@@ -22,7 +27,7 @@ export default function StorageMeter({ used, budget }: { used: number; budget: n
       >
         <div className={`h-full ${tone} transition-all`} style={{ width: `${pct}%` }} />
       </div>
-      {pct >= 100 ? (
+      {full ? (
         <p className="mt-3 text-sm font-bold text-red-600">
           Media storage is full: remove photos or move to a bigger storage plan.
         </p>
