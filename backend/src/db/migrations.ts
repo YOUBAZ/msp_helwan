@@ -300,4 +300,10 @@ INSERT INTO events (title, category, description, venue, starts_at, registration
   ('Season Orientation 2026', 'Orientation', 'The official launch of our new season. Discover our tracks, meet the new board, and start your technical journey.', 'Main Hall, Capital University', '2026-03-01T10:00:00+02:00', false, true, NULL, '[]'::jsonb, NULL);
 `,
   },
+  {
+    id: '007_event_cancel_notices',
+    sql: `
+ALTER TABLE event_registrations ADD COLUMN cancel_notice_sent_at timestamptz;
+`,
+  },
 ];

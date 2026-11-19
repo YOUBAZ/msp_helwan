@@ -36,7 +36,13 @@ import {
   qrPng,
   ticketUrl,
 } from './tickets';
-import { cairoDateTime, phase, startsTomorrowInCairo } from './timeline';
+import { eachLimited } from '../common/each-limited';
+import {
+  cairoDate,
+  cairoDateTime,
+  phase,
+  startsTomorrowInCairo,
+} from './timeline';
 
 export type Registration = typeof eventRegistrations.$inferSelect;
 export type RegisterInput = {
@@ -49,6 +55,9 @@ export type RegisterInput = {
 
 const DUPLICATE =
   "You're already registered for this event. We've re-sent your ticket email.";
+
+/** Emails sent at once in bulk sends (matches the SMTP pool size). */
+const MAIL_CONCURRENCY = 3;
 
 @Injectable()
 export class RegistrationsService {
@@ -263,7 +272,13 @@ export class RegistrationsService {
         .update(eventRegistrations)
         .set({ status: 'cancelled', cancelledAt: new Date() })
         .where(eq(eventRegistrations.id, r.id));
-      if (current.status === 'confirmed' && !event.cancelledAt) {
+      // Freed seats go to the waiting list only while the event is still
+      // ahead: nobody wants "a seat opened up" for an event that's over.
+      if (
+        current.status === 'confirmed' &&
+        !event.cancelledAt &&
+        phase(event, new Date()) === 'upcoming'
+      ) {
         promoted = await this.promoteWaitlist(tx, event);
       }
     });
@@ -326,21 +341,26 @@ export class RegistrationsService {
     const timeChanged =
       before.startsAt.getTime() !== after.startsAt.getTime() ||
       (before.endsAt?.getTime() ?? null) !== (after.endsAt?.getTime() ?? null);
-    if (timeChanged) {
+    // A new day needs a new reminder; a new end time (or hour) does not.
+    if (cairoDate(before.startsAt) !== cairoDate(after.startsAt)) {
       await this.db
         .update(eventRegistrations)
         .set({ reminderSentAt: null })
         .where(eq(eventRegistrations.eventId, id));
     }
     if (dto.notifyChanges && (timeChanged || before.venue !== after.venue)) {
-      for (const r of active) {
+      await eachLimited(active, MAIL_CONCURRENCY, async (r) => {
         await this.mail.send(
           eventChangedEmail(r, after, this.link(r.ticketCode)),
         );
-      }
+      });
     }
 
-    if (dto.capacity !== undefined && !after.cancelledAt) {
+    if (
+      dto.capacity !== undefined &&
+      !after.cancelledAt &&
+      phase(after, new Date()) === 'upcoming'
+    ) {
       let promoted: Registration[] = [];
       await this.db.transaction(async (tx) => {
         promoted = await this.promoteWaitlist(tx, await this.lockEvent(tx, id));
@@ -349,19 +369,56 @@ export class RegistrationsService {
     }
   }
 
+  /**
+   * Cancel the event and tell everyone registered. Each person is marked once
+   * told, so pressing "Cancel event" again (or the daily run) finishes any
+   * emails that failed or ran out of time, without repeating anyone.
+   */
   async cancelEvent(id: string) {
     const e = await this.events.row(id);
-    if (e.cancelledAt) return;
-    await this.db
-      .update(events)
-      .set({
-        cancelledAt: new Date(),
-        registrationOpen: false,
-        updatedAt: new Date(),
-      })
-      .where(eq(events.id, id));
-    for (const r of await this.active(id))
-      await this.mail.send(eventCancelledEmail(r, e));
+    if (!e.cancelledAt) {
+      await this.db
+        .update(events)
+        .set({
+          cancelledAt: new Date(),
+          registrationOpen: false,
+          updatedAt: new Date(),
+        })
+        .where(eq(events.id, id));
+    }
+    await this.sendCancelNotices(e);
+  }
+
+  private async sendCancelNotices(e: EventRow, deadline = Infinity) {
+    const pending = await this.db
+      .select()
+      .from(eventRegistrations)
+      .where(
+        and(
+          eq(eventRegistrations.eventId, e.id),
+          ne(eventRegistrations.status, 'cancelled'),
+          isNull(eventRegistrations.cancelNoticeSentAt),
+        ),
+      );
+    let sent = 0;
+    let failed = 0;
+    let remaining = 0;
+    await eachLimited(pending, MAIL_CONCURRENCY, async (r) => {
+      if (Date.now() > deadline) {
+        remaining++;
+        return;
+      }
+      if (!(await this.mail.send(eventCancelledEmail(r, e)))) {
+        failed++;
+        return;
+      }
+      await this.db
+        .update(eventRegistrations)
+        .set({ cancelNoticeSentAt: new Date() })
+        .where(eq(eventRegistrations.id, r.id));
+      sent++;
+    });
+    return { sent, failed, remaining };
   }
 
   async deleteEvent(id: string) {
@@ -380,7 +437,8 @@ export class RegistrationsService {
 
   // ---------- Board: registrations, CSV, check-in ----------
 
-  async boardList(eventId: string) {
+  /** Ticket links can cancel a registration, so only managers get them. */
+  async boardList(eventId: string, canManage: boolean) {
     const event = await this.events.adminEvent(eventId);
     const rows = await this.db
       .select()
@@ -399,7 +457,7 @@ export class RegistrationsService {
         year: r.year,
         status: r.status,
         position: r.status === 'waitlisted' ? ++waiting : null,
-        ticketUrl: this.link(r.ticketCode),
+        ticketUrl: canManage ? this.link(r.ticketCode) : undefined,
         createdAt: r.createdAt,
         checkedInAt: r.checkedInAt,
       })),
@@ -456,12 +514,18 @@ export class RegistrationsService {
         'Only people on the waiting list can be moved in.',
       );
     }
+    const event = await this.events.row(r.eventId);
+    if (event.cancelledAt || phase(event, new Date()) === 'past') {
+      throw new BadRequestException(
+        'This event is cancelled or over, so nobody can be moved in.',
+      );
+    }
     const [updated] = await this.db
       .update(eventRegistrations)
       .set({ status: 'confirmed', confirmedAt: new Date() })
       .where(eq(eventRegistrations.id, r.id))
       .returning();
-    await this.sendTicket(updated, await this.events.row(r.eventId), true);
+    await this.sendTicket(updated, event, true);
   }
 
   private async checkinCounts(eventId: string) {
@@ -563,6 +627,7 @@ export class RegistrationsService {
         ),
       );
     const due = soon.filter((e) => startsTomorrowInCairo(e.startsAt, now));
+    const deadline = startedAt + budgetMs;
     let sent = 0;
     let failed = 0;
     let remaining = 0;
@@ -578,10 +643,10 @@ export class RegistrationsService {
           ),
         )
         .orderBy(asc(eventRegistrations.createdAt));
-      for (const r of people) {
-        if (Date.now() - startedAt > budgetMs) {
+      await eachLimited(people, MAIL_CONCURRENCY, async (r) => {
+        if (Date.now() > deadline) {
           remaining++;
-          continue;
+          return;
         }
         const link = this.link(r.ticketCode);
         const ok = await this.mail.send(
@@ -589,14 +654,43 @@ export class RegistrationsService {
         );
         if (!ok) {
           failed++;
-          continue;
+          return;
         }
         await this.db
           .update(eventRegistrations)
           .set({ reminderSentAt: new Date() })
           .where(eq(eventRegistrations.id, r.id));
         sent++;
-      }
+      });
+    }
+
+    // Finish cancellation emails that didn't all go out when the board
+    // cancelled (failed sends or a request that ran out of time).
+    const cancelled = await this.db
+      .select()
+      .from(events)
+      .where(
+        and(
+          gt(events.startsAt, new Date(now.getTime() - 24 * 3600 * 1000)),
+          inArray(
+            events.id,
+            this.db
+              .select({ id: eventRegistrations.eventId })
+              .from(eventRegistrations)
+              .where(
+                and(
+                  ne(eventRegistrations.status, 'cancelled'),
+                  isNull(eventRegistrations.cancelNoticeSentAt),
+                ),
+              ),
+          ),
+        ),
+      );
+    for (const e of cancelled.filter((x) => x.cancelledAt)) {
+      const r = await this.sendCancelNotices(e, deadline);
+      sent += r.sent;
+      failed += r.failed;
+      remaining += r.remaining;
     }
     return { sent, failed, remaining };
   }

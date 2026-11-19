@@ -16,7 +16,8 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SkipThrottle } from '@nestjs/throttler';
 import type { Response } from 'express';
-import { Auth, AuthAny } from '../access/auth.guard';
+import { Auth, AuthAny, Me } from '../access/auth.guard';
+import { type CurrentUser, hasAll } from '../access/current-user';
 import { Throttle } from '@nestjs/throttler';
 import { CheckInDto, CreateEventDto, RegisterDto, UpdateEventDto } from './dto';
 import { EventsService } from './events.service';
@@ -31,7 +32,9 @@ export class PublicEventsController {
   ) {}
 
   @Post(':id/register')
-  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  // Generous: a whole lecture hall can share one campus or mobile IP. Bots
+  // are kept out by the honeypot and the one-registration-per-email rule.
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
   register(@Param('id', ParseUUIDPipe) id: string, @Body() dto: RegisterDto) {
     return this.registrations.register(id, dto);
   }
@@ -159,8 +162,8 @@ export class BoardRegistrationsController {
 
   @Get('events/:id/registrations')
   @AuthAny('events.manage', 'events.checkin')
-  list(@Param('id', ParseUUIDPipe) id: string) {
-    return this.registrations.boardList(id);
+  list(@Me() me: CurrentUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.registrations.boardList(id, hasAll(me, ['events.manage']));
   }
 
   @Post('events/:id/checkin')

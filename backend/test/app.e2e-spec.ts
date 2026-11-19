@@ -6,6 +6,7 @@ import request from 'supertest';
 import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { type Mail, MailService } from '../src/mail/mail.service';
+import { PublicEventsController } from '../src/events/events.controller';
 
 type Role = {
   id: string;
@@ -75,10 +76,12 @@ describe('MSP Tech Club API (e2e)', () => {
 
   let president: string;
   const outbox: Mail[] = [];
+  const failMailTo = new Set<string>();
   const fakeMail = {
     enabled: true,
     notifyTo: 'club@test.dev',
     send: (m: Mail) => {
+      if (failMailTo.has(m.to)) return Promise.resolve(false);
       outbox.push(m);
       return Promise.resolve(true);
     },
@@ -1484,7 +1487,11 @@ describe('MSP Tech Club API (e2e)', () => {
         email: 'guest1@test.dev',
         status: 'confirmed',
       });
-      expect(list[0].ticketUrl).toContain(`/tickets/${t.ticketCode}`);
+      // Ticket links let anyone cancel the registration: managers only.
+      expect(list[0].ticketUrl).toBeUndefined();
+      expect((await regs(ev.id))[0].ticketUrl).toContain(
+        `/tickets/${t.ticketCode}`,
+      );
       expect((await scan(ev.id, t.ticketCode, volunteer)).result).toBe(
         'checked_in',
       );
@@ -1656,6 +1663,129 @@ describe('MSP Tech Club API (e2e)', () => {
         const second = (await runCron('Bearer cron-test-secret').expect(200))
           .body as { sent: number };
         expect(second.sent).toBe(0);
+      } finally {
+        delete process.env.CRON_SECRET;
+      }
+    });
+
+    it('allows a busy room on one network to register (30/min per IP)', () => {
+      const limit = Reflect.getMetadata(
+        'THROTTLER:LIMITdefault',
+        PublicEventsController.prototype.register,
+      ) as number;
+      expect(limit).toBeGreaterThanOrEqual(30);
+    });
+
+    it('stops filling seats from the waiting list once the event has started', async () => {
+      const ev = await openEvent({ capacity: 1 });
+      const first = (await register(ev.id, 'late1@test.dev').expect(201))
+        .body as { ticketCode: string };
+      await register(ev.id, 'late2@test.dev').expect(201);
+      await http()
+        .patch(E(`/${ev.id}`))
+        .set(bearer(president))
+        .send({ startsAt: inHours(-1) })
+        .expect(200);
+      const firstRow = (await regs(ev.id)).find(
+        (r) => r.email === 'late1@test.dev',
+      )!;
+      await http()
+        .post(`/api/admin/registrations/${firstRow.id}/cancel`)
+        .set(bearer(president))
+        .expect(204);
+      await http()
+        .patch(E(`/${ev.id}`))
+        .set(bearer(president))
+        .send({ capacity: 5 })
+        .expect(200);
+      const second = (await regs(ev.id)).find(
+        (r) => r.email === 'late2@test.dev',
+      )!;
+      expect(second.status).toBe('waitlisted');
+      expect(lastMailTo('late2@test.dev')!.subject).toMatch(/waiting list/i);
+      expect(first.ticketCode).toBeTruthy();
+    });
+
+    it("won't move anyone in on a cancelled event", async () => {
+      const ev = await openEvent({ capacity: 1 });
+      await register(ev.id, 'cx1@test.dev').expect(201);
+      await register(ev.id, 'cx2@test.dev').expect(201);
+      await http()
+        .post(E(`/${ev.id}/cancel`))
+        .set(bearer(president))
+        .expect(200);
+      const w = (await regs(ev.id)).find((r) => r.email === 'cx2@test.dev')!;
+      await http()
+        .post(`/api/admin/registrations/${w.id}/promote`)
+        .set(bearer(president))
+        .expect(400);
+      expect(lastMailTo('cx2@test.dev')!.subject).toMatch(/cancelled/i);
+    });
+
+    it('finishes cancellation emails that failed the first time', async () => {
+      process.env.CRON_SECRET = 'cron-test-secret';
+      try {
+        const ev = await openEvent();
+        await register(ev.id, 'cn1@test.dev').expect(201);
+        await register(ev.id, 'cn2@test.dev').expect(201);
+        await register(ev.id, 'cn3@test.dev').expect(201);
+        failMailTo.add('cn2@test.dev');
+        failMailTo.add('cn3@test.dev');
+        await http()
+          .post(E(`/${ev.id}/cancel`))
+          .set(bearer(president))
+          .expect(200);
+        expect(lastMailTo('cn1@test.dev')!.subject).toMatch(/cancelled/i);
+        failMailTo.delete('cn2@test.dev');
+        // Pressing "Cancel event" again finishes the job...
+        await http()
+          .post(E(`/${ev.id}/cancel`))
+          .set(bearer(president))
+          .expect(200);
+        expect(lastMailTo('cn2@test.dev')!.subject).toMatch(/cancelled/i);
+        failMailTo.delete('cn3@test.dev');
+        // ...and so does the daily run, without emailing anyone twice.
+        await http()
+          .get('/api/cron/event-reminders')
+          .set('Authorization', 'Bearer cron-test-secret')
+          .expect(200);
+        expect(lastMailTo('cn3@test.dev')!.subject).toMatch(/cancelled/i);
+        const cancelled = (to: string) =>
+          outbox.filter((m) => m.to === to && /cancelled/i.test(m.subject))
+            .length;
+        expect([
+          cancelled('cn1@test.dev'),
+          cancelled('cn2@test.dev'),
+          cancelled('cn3@test.dev'),
+        ]).toEqual([1, 1, 1]);
+      } finally {
+        failMailTo.clear();
+        delete process.env.CRON_SECRET;
+      }
+    });
+
+    it('does not re-send reminders when only the end time changes', async () => {
+      process.env.CRON_SECRET = 'cron-test-secret';
+      try {
+        const ev = await openEvent({ startsAt: inHours(24) });
+        await register(ev.id, 'endonly@test.dev').expect(201);
+        const cron = () =>
+          http()
+            .get('/api/cron/event-reminders')
+            .set('Authorization', 'Bearer cron-test-secret')
+            .expect(200);
+        await cron();
+        await http()
+          .patch(E(`/${ev.id}`))
+          .set(bearer(president))
+          .send({ endsAt: inHours(27) })
+          .expect(200);
+        await cron();
+        expect(
+          outbox.filter(
+            (m) => m.to === 'endonly@test.dev' && /^Tomorrow:/.test(m.subject),
+          ).length,
+        ).toBe(1);
       } finally {
         delete process.env.CRON_SECRET;
       }

@@ -31,6 +31,10 @@ export async function api<T = unknown>(
     throw new ApiError("Can't reach the server. Please try again later.");
   }
   const body = await res.json().catch(() => ({}));
+  if (res.status === 429) {
+    // Many people on one campus or mobile network can share an address.
+    throw new ApiError("Lots of people are signing up from your network right now. Please wait a minute and try again.", 429);
+  }
   if (!res.ok) {
     const msg = Array.isArray(body.message) ? body.message[0] : body.message;
     throw new ApiError(msg || "Something went wrong. Please try again.", res.status);

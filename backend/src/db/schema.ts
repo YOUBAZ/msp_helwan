@@ -259,6 +259,9 @@ export const eventRegistrations = pgTable('event_registrations', {
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
   checkedInAt: timestamp('checked_in_at', { withTimezone: true }),
   reminderSentAt: timestamp('reminder_sent_at', { withTimezone: true }),
+  cancelNoticeSentAt: timestamp('cancel_notice_sent_at', {
+    withTimezone: true,
+  }),
 });
 
 export const eventCovers = pgTable('event_covers', {

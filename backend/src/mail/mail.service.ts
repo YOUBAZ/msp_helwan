@@ -44,6 +44,10 @@ export class MailService {
       host,
       port,
       secure: port === 465,
+      // Reuse a few logged-in connections: bulk event emails (reminders,
+      // cancellations) would otherwise pay a TLS + login per message.
+      pool: true,
+      maxConnections: 3,
       auth: user ? { user, pass: config.get<string>('SMTP_PASS') } : undefined,
       connectionTimeout: 10_000,
       greetingTimeout: 10_000,

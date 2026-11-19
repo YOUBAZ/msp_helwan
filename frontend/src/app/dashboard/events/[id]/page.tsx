@@ -44,7 +44,8 @@ type Reg = {
   year: string;
   status: "confirmed" | "waitlisted" | "cancelled";
   position: number | null;
-  ticketUrl: string;
+  /** Only for people who can manage events (a ticket link can cancel). */
+  ticketUrl?: string;
   createdAt: string;
   checkedInAt: string | null;
 };
@@ -532,18 +533,20 @@ function Registrations({ id }: { id: string }) {
                     <UserCheck size={14} /> Check in
                   </Button>
                 )}
-                <Button
-                  variant="ghost"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(r.ticketUrl);
-                      setCopied(r.id);
-                      setTimeout(() => setCopied(""), 2000);
-                    } catch {}
-                  }}
-                >
-                  <Copy size={14} /> {copied === r.id ? "Copied" : "Ticket link"}
-                </Button>
+                {r.ticketUrl && (
+                  <Button
+                    variant="ghost"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(r.ticketUrl!);
+                        setCopied(r.id);
+                        setTimeout(() => setCopied(""), 2000);
+                      } catch {}
+                    }}
+                  >
+                    <Copy size={14} /> {copied === r.id ? "Copied" : "Ticket link"}
+                  </Button>
+                )}
                 {manage && r.status === "waitlisted" && (
                   <Button variant="ghost" disabled={busy} onClick={() => void act(() => call(`/admin/registrations/${r.id}/promote`, { method: "POST" }))}>
                     <UserPlus size={14} /> Move in

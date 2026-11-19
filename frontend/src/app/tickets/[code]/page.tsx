@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Calendar, CheckCircle2, Clock, MapPin, Ticket as TicketIcon, XCircle } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { formatCairo } from "@/lib/events";
 import type { Ticket } from "@/lib/types";
 
@@ -13,12 +13,15 @@ export default function TicketPage() {
   const { code } = useParams<{ code: string }>();
   const [t, setT] = useState<Ticket | null>(null);
   const [error, setError] = useState("");
+  const [notFound, setNotFound] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
+      setError("");
       setT(await api<Ticket>(`/tickets/${encodeURIComponent(code)}`, { cache: "no-store" }));
     } catch (e) {
+      setNotFound(e instanceof ApiError && e.status === 404);
       setError((e as Error).message);
     }
   }, [code]);
@@ -44,7 +47,14 @@ export default function TicketPage() {
       <section className="py-24 min-h-[70vh] flex items-center justify-center px-6">
         {error ? (
           <div className="text-center space-y-4">
-            <p className="text-slate-600 font-bold">This ticket couldn&apos;t be found. Check the link in your email.</p>
+            <p className="text-slate-600 font-bold">
+              {notFound ? <>This ticket couldn&apos;t be found. Check the link in your email.</> : error}
+            </p>
+            {!notFound && (
+              <button onClick={() => void load()} className="block mx-auto text-orange-600 font-black text-xs uppercase tracking-widest">
+                Try again
+              </button>
+            )}
             <Link href="/events" className="text-blue-900 font-black text-xs uppercase tracking-widest">
               See all events
             </Link>
