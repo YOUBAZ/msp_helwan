@@ -64,23 +64,30 @@ export async function squareJpeg(file: File, size = 512): Promise<Blob> {
   }
 }
 
+/** Size of an image scaled down (never up) so its longest side is `maxSide`. */
+function fit(w: number, h: number, maxSide: number) {
+  const scale = Math.min(1, maxSide / Math.max(w, h));
+  return [Math.max(1, Math.round(w * scale)), Math.max(1, Math.round(h * scale))] as const;
+}
+
 /**
- * Shrink an image (no cropping) so its longest side is at most `maxSide` px,
- * returning a JPEG blob. Used for Media page photos.
+ * Make the two JPEG versions of a Media photo (no cropping) from a single
+ * decode of the file: `full` for the viewer, `small` for album cards.
  */
-export async function fitJpeg(file: File, maxSide: number, quality: number): Promise<Blob> {
+export async function photoVersions(
+  file: File,
+  sizes: { full: number; small: number } = { full: 1600, small: 600 },
+): Promise<{ full: Blob; small: Blob }> {
   const { img, done } = await decode(file, 40 * 1024 * 1024);
   try {
     const w = img.naturalWidth;
     const h = img.naturalHeight;
-    const scale = Math.min(1, maxSide / Math.max(w, h));
-    return await toJpeg(
-      img,
-      { x: 0, y: 0, w, h },
-      Math.max(1, Math.round(w * scale)),
-      Math.max(1, Math.round(h * scale)),
-      quality,
-    );
+    const whole = { x: 0, y: 0, w, h };
+    const [fw, fh] = fit(w, h, sizes.full);
+    const full = await toJpeg(img, whole, fw, fh, 0.82);
+    const [sw, sh] = fit(w, h, sizes.small);
+    const small = await toJpeg(img, whole, sw, sh, 0.8);
+    return { full, small };
   } finally {
     done();
   }

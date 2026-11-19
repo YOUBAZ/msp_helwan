@@ -28,7 +28,7 @@ import {
 } from "@/components/dashboard/ui";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { fitJpeg } from "@/lib/image";
+import { photoVersions } from "@/lib/image";
 import { countLabel, photoSrc } from "@/lib/media";
 import type { MediaAlbum } from "@/lib/types";
 
@@ -306,10 +306,7 @@ function PhotoUploader({
     for (const [n, file] of files.entries()) {
       setProgress({ done: n, total: files.length });
       try {
-        const [full, small] = await Promise.all([
-          fitJpeg(file, 1600, 0.82),
-          fitJpeg(file, 600, 0.8),
-        ]);
+        const { full, small } = await photoVersions(file);
         const body = new FormData();
         body.append("full", full, "full.jpg");
         body.append("small", small, "small.jpg");
