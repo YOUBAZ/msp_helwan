@@ -30,6 +30,7 @@ export default function MediaAdminPage() {
   const [albums, setAlbums] = useState<MediaAlbum[] | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [creating, setCreating] = useState(false);
+  const [moving, setMoving] = useState(false);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -54,6 +55,8 @@ export default function MediaAdminPage() {
   }
 
   const move = async (id: string, direction: "up" | "down") => {
+    if (moving) return; // one move at a time
+    setMoving(true);
     setError("");
     try {
       await call(`/admin/media/albums/${id}/move`, {
@@ -63,6 +66,8 @@ export default function MediaAdminPage() {
       await load();
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setMoving(false);
     }
   };
 
@@ -123,7 +128,7 @@ export default function MediaAdminPage() {
                   <button
                     className={iconBtn}
                     aria-label={`Move ${a.title} up`}
-                    disabled={i === 0}
+                    disabled={moving || i === 0}
                     onClick={() => void move(a.id, "up")}
                   >
                     <ArrowUp size={16} />
@@ -131,7 +136,7 @@ export default function MediaAdminPage() {
                   <button
                     className={iconBtn}
                     aria-label={`Move ${a.title} down`}
-                    disabled={i === albums.length - 1}
+                    disabled={moving || i === albums.length - 1}
                     onClick={() => void move(a.id, "down")}
                   >
                     <ArrowDown size={16} />

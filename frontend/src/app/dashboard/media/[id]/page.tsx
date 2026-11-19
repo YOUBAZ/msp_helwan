@@ -46,6 +46,7 @@ export default function AlbumEditorPage() {
   const [missing, setMissing] = useState(false);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     // Only this album: photo URLs stay the same between reloads, so the
@@ -67,12 +68,16 @@ export default function AlbumEditorPage() {
   }, [load, can]);
 
   const act = async (fn: () => Promise<unknown>) => {
+    if (busy) return; // one change at a time (e.g. no double-click moves)
+    setBusy(true);
     setError("");
     try {
       await fn();
       await load();
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -235,7 +240,7 @@ export default function AlbumEditorPage() {
                         <button
                           className={iconBtn}
                           aria-label="Move earlier"
-                          disabled={i === 0}
+                          disabled={busy || i === 0}
                           onClick={() =>
                             void act(() =>
                               post(`/admin/media/items/${item.id}/move`, {
@@ -249,7 +254,7 @@ export default function AlbumEditorPage() {
                         <button
                           className={iconBtn}
                           aria-label="Move later"
-                          disabled={i === album.items.length - 1}
+                          disabled={busy || i === album.items.length - 1}
                           onClick={() =>
                             void act(() =>
                               post(`/admin/media/items/${item.id}/move`, {
