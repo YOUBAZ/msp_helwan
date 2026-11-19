@@ -8,8 +8,10 @@ export const metadata: Metadata = { title: "Media Gallery" };
 
 async function loadAlbums(): Promise<MediaAlbum[] | null> {
   try {
-    // Always fresh: newly published albums must appear immediately.
-    const res = await fetch(`${API_URL}/media/albums`, { cache: "no-store" });
+    // Served from cache and refreshed in the background at most every 60 s,
+    // so visitors never wait for the API to wake up. Changes made in the
+    // dashboard appear within about a minute.
+    const res = await fetch(`${API_URL}/media/albums`, { next: { revalidate: 60 } });
     return res.ok ? ((await res.json()) as MediaAlbum[]) : null;
   } catch {
     return null;

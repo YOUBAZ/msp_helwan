@@ -144,7 +144,7 @@ export default function AlbumEditorPage() {
       <div className="flex flex-wrap items-center gap-2 mb-6 -mt-4">
         <Badge tone={album.published ? "green" : "slate"}>
           {album.published
-            ? "Published: visible on the Media page"
+            ? "Published: visible on the Media page (changes show within a minute)"
             : "Hidden: only managers can see it"}
         </Badge>
         <span className="text-xs font-bold text-slate-500">
