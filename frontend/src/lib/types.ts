@@ -116,3 +116,44 @@ export type MediaAlbum = {
   published: boolean;
   items: MediaItem[];
 };
+
+export type PublicEvent = {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  venue: string;
+  startsAt: string;
+  endsAt: string | null;
+  /** API-relative cover path, or null. */
+  coverUrl: string | null;
+  partners: string[];
+  highlight: string | null;
+  mediaAlbumId: string | null;
+  phase: "upcoming" | "live" | "past";
+  cancelled: boolean;
+  capacity: number | null;
+  confirmed: number;
+  waitlisted: number;
+  attendance: number | null;
+  registration: "open" | "waitlist" | "closed";
+};
+
+export type AdminEvent = PublicEvent & {
+  published: boolean;
+  registrationOpen: boolean;
+  registrationDeadline: string | null;
+  manualAttendance: number | null;
+  checkedIn: number;
+};
+
+export type EventLists = { upcoming: PublicEvent[]; live: PublicEvent[]; past: PublicEvent[] };
+
+export type Ticket = {
+  status: "confirmed" | "waitlisted" | "cancelled";
+  position: number | null;
+  name: string;
+  qr: string | null;
+  checkedInAt: string | null;
+  event: PublicEvent;
+};

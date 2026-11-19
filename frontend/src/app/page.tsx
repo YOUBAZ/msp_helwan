@@ -1,7 +1,7 @@
-import Link from "next/link";
-import { Award, Calendar, ChevronRight, Lock, ShieldCheck, Users } from "lucide-react";
+import { Award, Lock, ShieldCheck, Users } from "lucide-react";
 import { stats } from "@/data/site";
 import ContactList from "@/components/ContactList";
+import UpcomingEvents from "@/components/events/UpcomingEvents";
 import ContactForm from "@/components/ContactForm";
 import ExploreButton from "@/components/ExploreButton";
 import SocialIcons from "@/components/SocialIcons";
@@ -126,37 +126,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Events teaser */}
-      <section className="py-24 bg-slate-50">
-        <div className="container mx-auto px-6 text-center">
-          <h2 className="text-4xl font-black text-blue-900 mb-16 uppercase tracking-tight italic">
-            Our Impactful Events
-          </h2>
-          <div className="grid md:grid-cols-1 max-w-2xl mx-auto gap-8">
-            <div className="bg-white p-8 rounded-[2rem] shadow-lg border border-slate-100 group hover:border-orange-500 transition-all text-left">
-              <div className="flex justify-between items-start mb-6">
-                <div className="p-4 bg-blue-50 rounded-2xl text-blue-900 group-hover:bg-orange-600 group-hover:text-white transition-colors">
-                  <Calendar size={32} />
-                </div>
-                <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-[10px] font-black uppercase tracking-widest">
-                  Coming Soon
-                </span>
-              </div>
-              <h4 className="text-2xl font-black text-blue-900 mb-3">Season Orientation 2026</h4>
-              <p className="text-slate-500 text-sm leading-relaxed mb-6 italic">
-                &quot;The first step into a world of innovation. Meet the board and discover your
-                potential tracks.&quot;
-              </p>
-              <Link
-                href="/events"
-                className="inline-flex items-center gap-2 font-black text-xs text-blue-900 uppercase tracking-widest hover:text-orange-600 transition-colors"
-              >
-                Event Details <ChevronRight size={16} />
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* Events: countdown + next events */}
+      <UpcomingEvents />
 
       {/* Contact */}
       <section id="contact" className="py-24 bg-white">

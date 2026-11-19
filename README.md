@@ -47,7 +47,7 @@ Add new permissions in `backend/src/access/permissions.ts` and protect routes wi
 - Contact info & social links: `frontend/src/data/site.ts` (the WhatsApp number is still the original site's placeholder)
 - Committees: `frontend/src/data/committees.ts`
 - Board members: `frontend/src/data/team.ts` (photos in `frontend/public/images/team/`)
-- Events page texts: `frontend/src/data/events.ts`. Media albums, photos and videos: **Dashboard → Media**
+- Events: **Dashboard → Events**. Media albums, photos and videos: **Dashboard → Media**
 
 ## Database
 
