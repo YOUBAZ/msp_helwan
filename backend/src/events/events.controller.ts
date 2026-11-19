@@ -1,4 +1,5 @@
 import {
+  Put,
   Body,
   Controller,
   Delete,
@@ -19,7 +20,13 @@ import type { Response } from 'express';
 import { Auth, AuthAny, Me } from '../access/auth.guard';
 import { type CurrentUser, hasAll } from '../access/current-user';
 import { Throttle } from '@nestjs/throttler';
-import { CheckInDto, CreateEventDto, RegisterDto, UpdateEventDto } from './dto';
+import {
+  CheckInDto,
+  CreateEventDto,
+  RegisterDto,
+  SaveFormDto,
+  UpdateEventDto,
+} from './dto';
 import { EventsService } from './events.service';
 import { RegistrationsService } from './registrations.service';
 
@@ -92,6 +99,14 @@ export class AdminEventsController {
     private readonly events: EventsService,
     private readonly registrations: RegistrationsService,
   ) {}
+
+  @Put(':id/form')
+  async saveForm(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SaveFormDto,
+  ) {
+    return { form: await this.registrations.saveForm(id, dto.questions) };
+  }
 
   @Post(':id/cancel')
   @HttpCode(200)

@@ -1850,6 +1850,116 @@ describe('MSP Tech Club API (e2e)', () => {
       expect(csv.text).toContain('Computer Science');
     });
 
+    const saveForm = (id: string, questions: unknown, token = president) =>
+      http()
+        .put(E(`/${id}/form`))
+        .set(bearer(token))
+        .send({ questions });
+    const PHONE = {
+      id: 'phone',
+      type: 'short',
+      title: 'Phone',
+      required: true,
+    };
+    const answersFor = (extra: Record<string, unknown>) => ({
+      answers: { phone: '+20 1', ...extra },
+    });
+
+    it('the publisher edits the form', async () => {
+      const ev = await openEvent();
+      const track = {
+        id: 'track',
+        type: 'choice',
+        title: 'Which track?',
+        required: true,
+        options: ['AI', 'Web'],
+      };
+      const saved = await saveForm(ev.id, [PHONE, track]).expect(200);
+      expect(
+        (saved.body as { form: { id: string }[] }).form.map((q) => q.id),
+      ).toEqual(['phone', 'track']);
+      const pub = (await http().get(`/api/events/${ev.id}`)).body as {
+        form: { id: string }[];
+      };
+      expect(pub.form.map((q) => q.id)).toEqual(['phone', 'track']);
+      await saveForm(ev.id, [PHONE], volunteer).expect(403);
+      await register(
+        ev.id,
+        'edit1@test.dev',
+        answersFor({ track: 'Cloud' }),
+      ).expect(400);
+      await register(
+        ev.id,
+        'edit1@test.dev',
+        answersFor({ track: 'AI' }),
+      ).expect(201);
+    });
+
+    it('locks the type of answered questions', async () => {
+      const ev = await openEvent();
+      await saveForm(ev.id, [PHONE]).expect(200);
+      await register(ev.id, 'lock1@test.dev', answersFor({})).expect(201);
+      const r = await saveForm(ev.id, [{ ...PHONE, type: 'paragraph' }]).expect(
+        409,
+      );
+      expect((r.body as { message: string }).message).toMatch(
+        /can't change the type of "Phone"/,
+      );
+      const admin = (
+        await http()
+          .get(E(`/${ev.id}`))
+          .set(bearer(president))
+          .expect(200)
+      ).body as { answeredQuestionIds: string[] };
+      expect(admin.answeredQuestionIds).toContain('phone');
+    });
+
+    it('keeps answers to removed questions in the CSV', async () => {
+      const ev = await openEvent();
+      await register(ev.id, 'rm1@test.dev', {
+        answers: { phone: '+20 1', faculty: 'Engineering', year: '2' },
+      }).expect(201);
+      await saveForm(ev.id, [
+        PHONE,
+        { id: 'year', type: 'short', title: 'Academic year', required: true },
+        { id: 'fac2', type: 'short', title: 'Faculty', required: false },
+      ]).expect(200);
+      await register(ev.id, 'rm2@test.dev', {
+        answers: { phone: '+20 2', year: '1', fac2: 'Medicine' },
+      }).expect(201);
+      const csv = await http()
+        .get(E(`/${ev.id}/registrations.csv`))
+        .set(bearer(president))
+        .expect(200);
+      const [header, first, second] = csv.text.slice(1).trim().split('\r\n');
+      expect(header).toMatch(
+        /^Name,Email,Phone,Academic year,Faculty,Faculty \(removed\),Status,/,
+      );
+      expect(first).toContain(',Engineering,');
+      expect(second).toContain(',Medicine,');
+      const list = (
+        await http()
+          .get(E(`/${ev.id}/registrations`))
+          .set(bearer(president))
+          .expect(200)
+      ).body as { removedQuestions: { id: string; title: string }[] };
+      expect(list.removedQuestions).toEqual([
+        { id: 'faculty', title: 'Faculty' },
+      ]);
+    });
+
+    it('refuses invalid forms', async () => {
+      const ev = await openEvent();
+      const many = Array.from({ length: 31 }, (_, i) => ({
+        id: `q${i}`,
+        type: 'short',
+        title: `Q${i}`,
+        required: false,
+      }));
+      await saveForm(ev.id, many).expect(400);
+      await saveForm(ev.id, 'nope').expect(400);
+    });
+
     it('adds the two event permissions', async () => {
       const perms = (
         await http().get('/api/permissions').set(bearer(president)).expect(200)

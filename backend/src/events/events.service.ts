@@ -7,7 +7,8 @@ import {
 } from '@nestjs/common';
 import { asc, eq, inArray, sql } from 'drizzle-orm';
 import { sniffImage } from '../access/profile';
-import { DB, type Database } from '../db/database';
+import { DB, type Database, rows as resultRows } from '../db/database';
+import type { Tx } from '../db/reorder';
 import { eventCovers, eventRegistrations, events } from '../db/schema';
 import { UPLOAD_LOCK, usedMediaBytes } from '../media/budget';
 import { MediaService } from '../media/media.service';
@@ -96,9 +97,27 @@ export class EventsService {
     return rows.map((r) => toAdmin(r, counts.get(r.id) ?? NO_COUNTS, now));
   }
 
-  async adminEvent(id: string, now = new Date()): Promise<AdminEvent> {
+  async adminEvent(
+    id: string,
+    now = new Date(),
+  ): Promise<AdminEvent & { answeredQuestionIds: string[] }> {
     const e = await this.row(id);
-    return toAdmin(e, (await this.counts([id])).get(id) ?? NO_COUNTS, now);
+    return {
+      ...toAdmin(e, (await this.counts([id])).get(id) ?? NO_COUNTS, now),
+      answeredQuestionIds: await this.answeredQuestionIds(id),
+    };
+  }
+
+  /** Question ids that anyone (any status) has answered for this event. */
+  async answeredQuestionIds(
+    eventId: string,
+    db: Database | Tx = this.db,
+  ): Promise<string[]> {
+    const res = await db.execute(
+      sql`SELECT DISTINCT jsonb_object_keys(${eventRegistrations.answers}) AS id
+          FROM ${eventRegistrations} WHERE ${eventRegistrations.eventId} = ${eventId}`,
+    );
+    return resultRows<{ id: string }>(res).map((r) => r.id);
   }
 
   async categories(): Promise<string[]> {

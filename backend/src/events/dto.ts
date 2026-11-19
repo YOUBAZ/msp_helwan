@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
 import {
+  IsDefined,
   IsObject,
   ArrayMaxSize,
   IsArray,
@@ -139,6 +140,12 @@ export class RegisterDto {
   @IsString()
   @MaxLength(0, { message: 'Something went wrong. Please try again.' })
   website?: string;
+}
+
+export class SaveFormDto {
+  /** The full question list; checked by parseForm in the service. */
+  @IsDefined({ message: 'The form must be a list of questions.' })
+  questions!: unknown;
 }
 
 export class CheckInDto {

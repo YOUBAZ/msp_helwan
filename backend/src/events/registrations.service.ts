@@ -37,7 +37,7 @@ import {
   ticketUrl,
 } from './tickets';
 import { eachLimited } from '../common/each-limited';
-import { validateAnswers } from './forms';
+import { parseForm, type Question, validateAnswers } from './forms';
 import {
   cairoDate,
   cairoDateTime,
@@ -380,6 +380,41 @@ export class RegistrationsService {
    * told, so pressing "Cancel event" again (or the daily run) finishes any
    * emails that failed or ran out of time, without repeating anyone.
    */
+  /**
+   * Replace the event's form. A question's type is locked once anyone has
+   * answered it; deleted questions with answers keep their title for the CSV.
+   */
+  async saveForm(eventId: string, input: unknown): Promise<Question[]> {
+    const form = parseForm(input);
+    return this.db.transaction(async (tx) => {
+      const e = await this.lockEvent(tx, eventId);
+      const answered = new Set(
+        await this.events.answeredQuestionIds(eventId, tx),
+      );
+      const before = new Map(e.form.map((q) => [q.id, q]));
+      for (const q of form) {
+        const old = before.get(q.id);
+        if (old && old.type !== q.type && answered.has(q.id)) {
+          throw new ConflictException(
+            `You can't change the type of "${old.title}" because people already answered it.`,
+          );
+        }
+      }
+      const live = new Set(form.map((q) => q.id));
+      const removed = { ...e.removedQuestions };
+      for (const id of live) delete removed[id];
+      for (const old of e.form) {
+        if (!live.has(old.id) && answered.has(old.id))
+          removed[old.id] = old.title;
+      }
+      await tx
+        .update(events)
+        .set({ form, removedQuestions: removed, updatedAt: new Date() })
+        .where(eq(events.id, eventId));
+      return form;
+    });
+  }
+
   async cancelEvent(id: string) {
     const e = await this.events.row(id);
     if (!e.cancelledAt) {
