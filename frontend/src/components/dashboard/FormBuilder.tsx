@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, Copy, Eye, Lock, Plus, Save, Trash2, X } from "lucide-react";
 import FormFields from "@/components/events/FormFields";
 import { Button, Card, Checkbox, ErrorText, inputCls, labelCls, Modal } from "@/components/dashboard/ui";
@@ -31,6 +31,14 @@ export default function FormBuilder({ event, onSaved }: { event: AdminEvent; onS
   const [msg, setMsg] = useState({ ok: "", err: "" });
   const [busy, setBusy] = useState(false);
   const answered = new Set(event.answeredQuestionIds ?? []);
+
+  // Warn before closing or leaving the page with unsaved changes.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
   const update = (next: Question[]) => {
     setQuestions(next);

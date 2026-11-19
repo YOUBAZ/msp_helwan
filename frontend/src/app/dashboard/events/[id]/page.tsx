@@ -84,7 +84,14 @@ export default function EventEditorPage() {
           ))}
         </div>
       )}
-      {tab === "details" && manage ? <Details id={id} /> : tab === "form" && manage ? <FormTab id={id} /> : <Registrations id={id} />}
+      {tab === "details" && manage && <Details id={id} />}
+      {/* Kept mounted (just hidden) so unsaved form edits survive switching tabs. */}
+      {manage && (
+        <div hidden={tab !== "form"}>
+          <FormTab id={id} active={tab === "form"} />
+        </div>
+      )}
+      {(tab === "registrations" || !manage) && <Registrations id={id} />}
     </>
   );
 }
@@ -665,7 +672,7 @@ function Registrations({ id }: { id: string }) {
 
 // ---------------------------------------------------------------- Form
 
-function FormTab({ id }: { id: string }) {
+function FormTab({ id, active }: { id: string; active: boolean }) {
   const { call } = useAuth();
   const [ev, setEv] = useState<AdminEvent | null>(null);
   const [error, setError] = useState("");
@@ -676,9 +683,11 @@ function FormTab({ id }: { id: string }) {
       setError((e as Error).message);
     }
   }, [call, id]);
+  // Refresh on every visit: who has answered (type locks) may have changed.
+  // FormBuilder keeps its own unsaved edits; only the locks update.
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (active) void load();
+  }, [load, active]);
   if (!ev) return error ? <Empty text={`This event couldn't be loaded: ${error}`} /> : null;
   return <FormBuilder key={ev.id} event={ev} onSaved={() => void load()} />;
 }

@@ -2025,6 +2025,24 @@ describe('MSP Tech Club API (e2e)', () => {
       expect(people.registrations).toEqual([]);
     });
 
+    it('defuses spreadsheet formulas in the CSV', async () => {
+      const ev = await openEvent();
+      await register(ev.id, 'formula@test.dev', {
+        name: '=HYPERLINK("https://evil.test","x")',
+        answers: { phone: '+20 1', faculty: '@SUM(A1)', year: '-3' },
+      }).expect(201);
+      const csv = await http()
+        .get(E(`/${ev.id}/registrations.csv`))
+        .set(bearer(president))
+        .expect(200);
+      const row = csv.text.slice(1).trim().split('\r\n')[1];
+      expect(row.startsWith(`"'=HYPERLINK(""https://evil.test"",""x"")"`)).toBe(
+        true,
+      );
+      expect(row).toContain(",'@SUM(A1),'-3,");
+      expect(row).toContain(",'+20 1,");
+    });
+
     it('adds the two event permissions', async () => {
       const perms = (
         await http().get('/api/permissions').set(bearer(president)).expect(200)

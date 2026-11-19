@@ -4,18 +4,22 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { registrationLabel, seatsLeft } from "@/lib/events";
-import type { Answers, PublicEvent } from "@/lib/types";
+import type { Answers, PublicEvent, Question } from "@/lib/types";
 import FormFields from "./FormFields";
 
 const inputCls =
   "w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-900 outline-none";
 const labelCls = "text-[10px] font-black uppercase tracking-widest text-slate-500";
 
-/** Drop blank answers (the server treats them as unanswered anyway). */
-function cleanAnswers(a: Answers): Answers {
+/**
+ * Only answers to the form's current questions, without blanks (if the form
+ * was edited while someone was filling it in, old answers are dropped).
+ */
+function cleanAnswers(a: Answers, form: Question[]): Answers {
   const out: Answers = {};
-  for (const [k, v] of Object.entries(a)) {
-    if (Array.isArray(v) ? v.length > 0 : v.trim() !== "") out[k] = v;
+  for (const q of form) {
+    const v = a[q.id];
+    if (v !== undefined && (Array.isArray(v) ? v.length > 0 : v.trim() !== "")) out[q.id] = v;
   }
   return out;
 }
@@ -50,12 +54,15 @@ export default function RegistrationBox({ initial }: { initial: PublicEvent }) {
     try {
       const r = await api<{ ticketCode: string }>(`/events/${event.id}/register`, {
         method: "POST",
-        body: JSON.stringify({ ...form, answers: cleanAnswers(answers) }),
+        body: JSON.stringify({ ...form, answers: cleanAnswers(answers, event.form) }),
       });
       router.push(`/tickets/${r.ticketCode}`);
     } catch (err) {
       const msg = (err as Error).message;
       if (/already registered/i.test(msg)) setNotice(msg);
+      else if (/reload the page/i.test(msg))
+        // We refresh the form below, so no reload is needed.
+        setError("The organisers just updated this form. Please check the questions and submit again.");
       else setError(msg);
       setBusy(false);
       void refresh();

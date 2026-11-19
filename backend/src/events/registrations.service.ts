@@ -515,8 +515,12 @@ export class RegistrationsService {
       .from(eventRegistrations)
       .where(eq(eventRegistrations.eventId, eventId))
       .orderBy(asc(eventRegistrations.createdAt));
-    const cell = (v: string) =>
-      /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+    const cell = (raw: string) => {
+      // Anyone can register, so never let a value start a spreadsheet
+      // formula (=, +, -, @, tab, CR): Excel shows it as plain text instead.
+      const v = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+      return /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+    };
     const columns = [
       ...e.form.map((q) => ({ id: q.id, title: q.title })),
       ...removedList(e).map((q) => ({
