@@ -298,6 +298,17 @@ function PhotoUploader({
   const [stopped, setStopped] = useState("");
   const [dragging, setDragging] = useState(false);
 
+  // Warn before closing or reloading the tab while photos are still uploading.
+  useEffect(() => {
+    if (!progress) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [progress]);
+
   async function upload(files: File[]) {
     if (!files.length || progress) return;
     setFailed([]);
