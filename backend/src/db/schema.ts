@@ -208,3 +208,64 @@ export const mediaBlobs = pgTable(
   },
   (t) => [primaryKey({ columns: [t.itemId, t.variant] })],
 );
+
+export const events = pgTable('events', {
+  id: id(),
+  title: text('title').notNull(),
+  category: text('category').notNull(),
+  description: text('description').notNull().default(''),
+  venue: text('venue').notNull(),
+  startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+  endsAt: timestamp('ends_at', { withTimezone: true }),
+  /** null = unlimited */
+  capacity: integer('capacity'),
+  registrationOpen: boolean('registration_open').notNull().default(true),
+  registrationDeadline: timestamp('registration_deadline', {
+    withTimezone: true,
+  }),
+  published: boolean('published').notNull().default(false),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  mediaAlbumId: uuid('media_album_id').references(() => mediaAlbums.id, {
+    onDelete: 'set null',
+  }),
+  highlight: text('highlight'),
+  partners: jsonb('partners').$type<string[]>().notNull().default([]),
+  /** Attendance for events that predate check-in. */
+  manualAttendance: integer('manual_attendance'),
+  coverVersion: integer('cover_version').notNull().default(0),
+  createdAt: createdAt(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const eventRegistrations = pgTable('event_registrations', {
+  id: id(),
+  eventId: uuid('event_id')
+    .notNull()
+    .references(() => events.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  email: text('email').notNull(), // lower-case
+  phone: text('phone').notNull(),
+  faculty: text('faculty').notNull(),
+  year: text('year').notNull(),
+  status: text('status')
+    .$type<'confirmed' | 'waitlisted' | 'cancelled'>()
+    .notNull(),
+  /** Secret code in the ticket link and QR. */
+  ticketCode: text('ticket_code').notNull().unique(),
+  createdAt: createdAt(),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  checkedInAt: timestamp('checked_in_at', { withTimezone: true }),
+  reminderSentAt: timestamp('reminder_sent_at', { withTimezone: true }),
+});
+
+export const eventCovers = pgTable('event_covers', {
+  eventId: uuid('event_id')
+    .primaryKey()
+    .references(() => events.id, { onDelete: 'cascade' }),
+  mime: text('mime').notNull(),
+  data: bytea('data').notNull(),
+  bytes: integer('bytes').notNull(),
+});

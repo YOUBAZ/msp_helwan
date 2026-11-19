@@ -18,6 +18,7 @@ import type { Permission } from './permissions';
 export type JwtPayload = { sub: string; tv: number };
 
 const PERMS_KEY = 'requiredPermissions';
+const ANY_PERMS_KEY = 'anyPermissions';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -53,6 +54,14 @@ export class AuthGuard implements CanActivate {
     if (!hasAll(user, required)) {
       throw new ForbiddenException("You don't have permission to do that.");
     }
+    const any =
+      this.reflector.getAllAndOverride<Permission[]>(ANY_PERMS_KEY, [
+        ctx.getHandler(),
+        ctx.getClass(),
+      ]) ?? [];
+    if (any.length && !any.some((p) => hasAll(user, [p]))) {
+      throw new ForbiddenException("You don't have permission to do that.");
+    }
     return true;
   }
 }
@@ -65,3 +74,10 @@ export const Me = createParamDecorator(
   (_: unknown, ctx: ExecutionContext) =>
     ctx.switchToHttp().getRequest<AuthedRequest>().user,
 );
+
+/** Require a logged-in user holding at least one of the given permissions. */
+export const AuthAny = (...permissions: Permission[]) =>
+  applyDecorators(
+    SetMetadata(ANY_PERMS_KEY, permissions),
+    UseGuards(AuthGuard),
+  );

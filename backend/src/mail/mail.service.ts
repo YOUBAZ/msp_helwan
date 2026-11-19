@@ -8,6 +8,8 @@ export type Mail = {
   html: string;
   text: string;
   replyTo?: string;
+  /** Inline images referenced from the HTML as <img src="cid:...">. */
+  attachments?: { filename: string; content: Buffer; cid: string }[];
 };
 
 /**

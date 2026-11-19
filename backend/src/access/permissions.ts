@@ -23,6 +23,17 @@ export const PERMISSIONS = [
     label: "Build and publish each season's team hierarchy (Our Team page)",
   },
   {
+    key: 'events.manage',
+    group: 'Events',
+    label:
+      'Create, edit, publish and cancel events; manage registrations and the waiting list',
+  },
+  {
+    key: 'events.checkin',
+    group: 'Events',
+    label: 'See registrations and check people in at the door',
+  },
+  {
     key: 'media.manage',
     group: 'Media',
     label: 'Manage the Media page (albums, photos and videos)',

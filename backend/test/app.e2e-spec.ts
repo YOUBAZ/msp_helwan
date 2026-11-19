@@ -1066,4 +1066,21 @@ describe('MSP Tech Club API (e2e)', () => {
       expect([...cats].sort()).toEqual(cats);
     });
   });
+
+  describe('events', () => {
+    it('adds the two event permissions', async () => {
+      const perms = (
+        await http().get('/api/permissions').set(bearer(president)).expect(200)
+      ).body as { key: string }[];
+      expect(perms.map((p) => p.key)).toEqual(
+        expect.arrayContaining(['events.manage', 'events.checkin']),
+      );
+      const pres = (await roles(president)).find(
+        (r) => r.name === 'President',
+      )!;
+      expect(pres.permissions).toEqual(
+        expect.arrayContaining(['events.manage', 'events.checkin']),
+      );
+    });
+  });
 });

@@ -240,4 +240,64 @@ INSERT INTO media_items (album_id, kind, sort_order, legacy_path) VALUES
 DELETE FROM media_items WHERE legacy_path IS NOT NULL;
 `,
   },
+  {
+    id: '006_events',
+    sql: `
+CREATE TABLE events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  title text NOT NULL,
+  category text NOT NULL,
+  description text NOT NULL DEFAULT '',
+  venue text NOT NULL,
+  starts_at timestamptz NOT NULL,
+  ends_at timestamptz,
+  capacity integer,
+  registration_open boolean NOT NULL DEFAULT true,
+  registration_deadline timestamptz,
+  published boolean NOT NULL DEFAULT false,
+  cancelled_at timestamptz,
+  media_album_id uuid REFERENCES media_albums(id) ON DELETE SET NULL,
+  highlight text,
+  partners jsonb NOT NULL DEFAULT '[]'::jsonb,
+  manual_attendance integer,
+  cover_version integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX events_starts_at_idx ON events(starts_at);
+
+CREATE TABLE event_registrations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  email text NOT NULL,
+  phone text NOT NULL,
+  faculty text NOT NULL,
+  year text NOT NULL,
+  status text NOT NULL,
+  ticket_code text NOT NULL UNIQUE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  confirmed_at timestamptz,
+  cancelled_at timestamptz,
+  checked_in_at timestamptz,
+  reminder_sent_at timestamptz,
+  CHECK (status IN ('confirmed', 'waitlisted', 'cancelled'))
+);
+CREATE INDEX event_registrations_event_idx ON event_registrations(event_id);
+CREATE UNIQUE INDEX event_registrations_one_active ON event_registrations(event_id, email) WHERE status <> 'cancelled';
+
+CREATE TABLE event_covers (
+  event_id uuid PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
+  mime text NOT NULL,
+  data bytea NOT NULL,
+  bytes integer NOT NULL
+);
+
+INSERT INTO events (title, category, description, venue, starts_at, registration_open, published, highlight, partners, manual_attendance) VALUES
+  ('Orientation Day 2025', 'Event', 'Welcoming the previous generation and introducing the Microsoft Student Partners community.', 'Capital University', '2025-06-23T10:00:00+03:00', false, true, 'Community Growth', '[]'::jsonb, NULL),
+  ('Battery Tech with Schneider Electric 2025', 'Workshop', 'Exploring sustainable energy solutions and modern battery technologies with industry experts.', 'Capital University', '2025-07-17T10:00:00+03:00', false, true, 'Industry Certification', '["Schneider Electric"]'::jsonb, NULL),
+  ('AI Catalyst with Dotpy 2025', 'Workshop', 'A high-impact event focused on accelerating AI adoption and hands-on machine learning innovation.', 'Capital University', '2025-08-22T10:00:00+03:00', false, true, '200+ Attendees', '["Dotpy"]'::jsonb, 200),
+  ('Season Orientation 2026', 'Orientation', 'The official launch of our new season. Discover our tracks, meet the new board, and start your technical journey.', 'Main Hall, Capital University', '2026-03-01T10:00:00+02:00', false, true, NULL, '[]'::jsonb, NULL);
+`,
+  },
 ];

@@ -11,6 +11,7 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { sniffImage } from '../access/profile';
 import { DB, type Database } from '../db/database';
 import { moveInOrder } from '../db/reorder';
+import { UPLOAD_LOCK, usedMediaBytes } from './budget';
 import { mediaAlbums, mediaBlobs, mediaItems } from '../db/schema';
 import { signPhotoToken, verifyPhotoToken } from './photo-token';
 import { parseVideoLink } from './video-links';
@@ -46,8 +47,6 @@ export type UploadedFile = { buffer: Buffer; size: number };
 
 const DEFAULT_BUDGET = 400 * 1024 * 1024;
 const MAX_FILE = 2 * 1024 * 1024;
-/** Postgres advisory-lock key serialising photo uploads (budget check). */
-const UPLOAD_LOCK = 726356;
 const FULL_MESSAGE =
   'Media storage is full: remove photos or move to a bigger storage plan.';
 
@@ -177,13 +176,13 @@ export class MediaService {
   }
 
   async usage() {
-    const [r] = await this.db
-      .select({ used: sql<string | number | null>`sum(${mediaBlobs.bytes})` })
-      .from(mediaBlobs);
-    return { usedBytes: Number(r.used ?? 0), budgetBytes: this.budget() };
+    return {
+      usedBytes: await usedMediaBytes(this.db),
+      budgetBytes: this.budget(),
+    };
   }
 
-  private budget() {
+  budget() {
     const v = Number(this.config.get<string>('MEDIA_BUDGET_BYTES'));
     return Number.isFinite(v) && v > 0 ? v : DEFAULT_BUDGET;
   }
@@ -327,12 +326,8 @@ export class MediaService {
       // One upload at a time checks the space and saves, so two people
       // uploading at once can't both squeeze in past the budget.
       await tx.execute(sql`SELECT pg_advisory_xact_lock(${UPLOAD_LOCK})`);
-      const [used] = await tx
-        .select({
-          bytes: sql<string | number | null>`sum(${mediaBlobs.bytes})`,
-        })
-        .from(mediaBlobs);
-      if (Number(used.bytes ?? 0) + full.size + small.size > this.budget()) {
+      const used = await usedMediaBytes(tx);
+      if (used + full.size + small.size > this.budget()) {
         throw new PayloadTooLargeException(FULL_MESSAGE);
       }
       const [max] = await tx
