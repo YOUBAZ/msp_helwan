@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  CalendarDays,
   LayoutDashboard,
   Images,
   LogOut,
@@ -16,13 +17,27 @@ import {
 import Avatar from "@/components/dashboard/Avatar";
 import { AuthProvider, useAuth } from "@/lib/auth";
 
-const NAV = [
+type NavItem = {
+  href: string;
+  label: string;
+  Icon: typeof Users;
+  perm?: string;
+  anyPerm?: string[];
+};
+
+const NAV: NavItem[] = [
   { href: "/dashboard", label: "Overview", Icon: LayoutDashboard },
   { href: "/dashboard/inbox", label: "Inbox", Icon: MessageSquare, perm: "messages.view" },
   { href: "/dashboard/subscribers", label: "Subscribers", Icon: Mail, perm: "subscribers.view" },
   { href: "/dashboard/members", label: "Members", Icon: Users, perm: "members.view" },
   { href: "/dashboard/roles", label: "Roles", Icon: ShieldCheck },
   { href: "/dashboard/hierarchy", label: "Team Hierarchy", Icon: Network, perm: "seasons.manage" },
+  {
+    href: "/dashboard/events",
+    label: "Events",
+    Icon: CalendarDays,
+    anyPerm: ["events.manage", "events.checkin"],
+  },
   { href: "/dashboard/media", label: "Media", Icon: Images, perm: "media.manage" },
   { href: "/dashboard/profile", label: "My Profile", Icon: UserCircle },
 ];
@@ -30,7 +45,9 @@ const NAV = [
 function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { me, can, logout } = useAuth();
-  const items = NAV.filter((n) => !n.perm || can(n.perm));
+  const items = NAV.filter((n: NavItem) =>
+    n.anyPerm ? n.anyPerm.some((p) => can(p)) : !n.perm || can(n.perm),
+  );
 
   return (
     <section className="bg-slate-50 min-h-screen py-8 md:py-12">
