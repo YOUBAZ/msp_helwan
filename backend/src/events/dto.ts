@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
 import {
+  IsObject,
   ArrayMaxSize,
   IsArray,
   IsBoolean,
@@ -10,7 +11,6 @@ import {
   IsString,
   IsUUID,
   Length,
-  Matches,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -130,25 +130,9 @@ export class RegisterDto {
   @MaxLength(254)
   email!: string;
 
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : value,
-  )
-  @IsString()
-  @Matches(/^\+?\d[\d\s-]{6,18}\d$/, {
-    message:
-      'Please enter a valid phone number (digits, optional + at the start).',
-  })
-  phone!: string;
-
-  @Transform(trim)
-  @IsString()
-  @Length(2, 80, { message: 'Please enter your faculty.' })
-  faculty!: string;
-
-  @Transform(trim)
-  @IsString()
-  @Length(1, 20, { message: 'Please enter your academic year.' })
-  year!: string;
+  /** Answers to the event's form, checked against it by the service. */
+  @IsObject({ message: 'Please fill in the form.' })
+  answers!: Record<string, unknown>;
 
   /** Hidden field: real people leave it empty. */
   @IsOptional()

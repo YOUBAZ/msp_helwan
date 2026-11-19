@@ -1206,9 +1206,11 @@ describe('MSP Tech Club API (e2e)', () => {
     const student = (email: string, extra: Record<string, unknown> = {}) => ({
       name: 'Student Name',
       email,
-      phone: '+20 100 000 0000',
-      faculty: 'Computer Science',
-      year: '3',
+      answers: {
+        phone: '+20 100 000 0000',
+        faculty: 'Computer Science',
+        year: '3',
+      },
       website: '',
       ...extra,
     });
@@ -1576,7 +1578,7 @@ describe('MSP Tech Club API (e2e)', () => {
       expect(text.charCodeAt(0)).toBe(0xfeff);
       const [header, row] = text.slice(1).trim().split('\r\n');
       expect(header).toBe(
-        'Name,Email,Phone,Faculty,Year,Status,Registered at,Checked in at',
+        'Name,Email,Phone,Faculty,Academic year,Status,Registered at,Checked in at',
       );
       expect(row).toContain('مريم خالد');
       expect(row).toContain('csv@test.dev');
@@ -1671,6 +1673,8 @@ describe('MSP Tech Club API (e2e)', () => {
     it('allows a busy room on one network to register (30/min per IP)', () => {
       const limit = Reflect.getMetadata(
         'THROTTLER:LIMITdefault',
+        // Reading decorator metadata only; the method is never called.
+        // eslint-disable-next-line @typescript-eslint/unbound-method
         PublicEventsController.prototype.register,
       ) as number;
       expect(limit).toBeGreaterThanOrEqual(30);
@@ -1789,6 +1793,61 @@ describe('MSP Tech Club API (e2e)', () => {
       } finally {
         delete process.env.CRON_SECRET;
       }
+    });
+
+    it("registers with the event's form answers", async () => {
+      const ev = await openEvent();
+      const pub = (await http().get(`/api/events/${ev.id}`).expect(200))
+        .body as { form: { id: string }[] };
+      expect(pub.form.map((q) => q.id)).toEqual(['phone', 'faculty', 'year']);
+      const missing = await register(ev.id, 'form1@test.dev', {
+        answers: { phone: '+20 1', faculty: 'CS' },
+      }).expect(400);
+      expect((missing.body as { message: string }).message).toMatch(
+        /"Academic year" is required/,
+      );
+      const ghost = await register(ev.id, 'form1@test.dev', {
+        answers: { phone: '+20 1', faculty: 'CS', year: '3', ghost: 'x' },
+      }).expect(400);
+      expect((ghost.body as { message: string }).message).toMatch(
+        /reload the page/,
+      );
+      await register(ev.id, 'form1@test.dev').expect(201);
+      const mine = (
+        await http()
+          .get(E(`/${ev.id}/registrations`))
+          .set(bearer(president))
+          .expect(200)
+      ).body as {
+        form: { id: string }[];
+        registrations: { answers?: Record<string, string> }[];
+      };
+      expect(mine.form.map((q) => q.id)).toEqual(['phone', 'faculty', 'year']);
+      expect(mine.registrations[0].answers!.faculty).toBe('Computer Science');
+      const theirs = (
+        await http()
+          .get(E(`/${ev.id}/registrations`))
+          .set(bearer(volunteer))
+          .expect(200)
+      ).body as {
+        form: unknown[];
+        registrations: { answers?: unknown }[];
+      };
+      expect(theirs.form).toEqual([]);
+      expect(theirs.registrations[0]).not.toHaveProperty('answers');
+    });
+
+    it('CSV has a column per question', async () => {
+      const ev = await openEvent();
+      await register(ev.id, 'csvq@test.dev').expect(201);
+      const csv = await http()
+        .get(E(`/${ev.id}/registrations.csv`))
+        .set(bearer(president))
+        .expect(200);
+      expect(csv.text.replace(/^\uFEFF/, '').split('\r\n')[0]).toMatch(
+        /^Name,Email,Phone,Faculty,Academic year,Status,/,
+      );
+      expect(csv.text).toContain('Computer Science');
     });
 
     it('adds the two event permissions', async () => {

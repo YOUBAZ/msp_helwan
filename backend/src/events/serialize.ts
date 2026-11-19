@@ -1,4 +1,5 @@
 import type { events } from '../db/schema';
+import type { Question } from './forms';
 import { phase, registrationCloses } from './timeline';
 
 export type EventRow = typeof events.$inferSelect;
@@ -27,6 +28,8 @@ export type PublicEvent = {
   waitlisted: number;
   attendance: number | null;
   registration: 'open' | 'waitlist' | 'closed';
+  /** The registration form students fill in. */
+  form: Question[];
 };
 
 export type AdminEvent = PublicEvent & {
@@ -71,6 +74,7 @@ export function toPublic(e: EventRow, c: Counts, now: Date): PublicEvent {
     waitlisted: c.waitlisted,
     attendance: c.checkedIn > 0 ? c.checkedIn : e.manualAttendance,
     registration: registrationState(e, c, now),
+    form: e.form,
   };
 }
 

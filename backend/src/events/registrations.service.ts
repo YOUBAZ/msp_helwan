@@ -37,6 +37,7 @@ import {
   ticketUrl,
 } from './tickets';
 import { eachLimited } from '../common/each-limited';
+import { validateAnswers } from './forms';
 import {
   cairoDate,
   cairoDateTime,
@@ -48,10 +49,16 @@ export type Registration = typeof eventRegistrations.$inferSelect;
 export type RegisterInput = {
   name: string;
   email: string;
-  phone: string;
-  faculty: string;
-  year: string;
+  answers: unknown;
 };
+
+/** Deleted questions that still have answers, for the list and CSV. */
+function removedList(e: EventRow) {
+  const live = new Set(e.form.map((q) => q.id));
+  return Object.entries(e.removedQuestions)
+    .filter(([id]) => !live.has(id))
+    .map(([id, title]) => ({ id, title }));
+}
 
 const DUPLICATE =
   "You're already registered for this event. We've re-sent your ticket email.";
@@ -188,6 +195,7 @@ export class RegistrationsService {
             ),
           );
         if (existing) return;
+        const answers = validateAnswers(event.form, input.answers);
         const confirmed = await this.confirmedCount(tx, eventId);
         const state = registrationState(
           event,
@@ -206,9 +214,7 @@ export class RegistrationsService {
             eventId,
             name: input.name,
             email,
-            phone: input.phone,
-            faculty: input.faculty,
-            year: input.year,
+            answers,
             status,
             ticketCode: newTicketCode(),
             confirmedAt: status === 'confirmed' ? now : null,
@@ -445,19 +451,21 @@ export class RegistrationsService {
       .from(eventRegistrations)
       .where(eq(eventRegistrations.eventId, eventId))
       .orderBy(asc(eventRegistrations.createdAt));
+    const row = await this.events.row(eventId);
     let waiting = 0;
     return {
       event,
+      // Answers are personal data: only for people who manage events.
+      form: canManage ? row.form : [],
+      removedQuestions: canManage ? removedList(row) : [],
       registrations: rows.map((r) => ({
         id: r.id,
         name: r.name,
         email: r.email,
-        phone: r.phone,
-        faculty: r.faculty,
-        year: r.year,
         status: r.status,
         position: r.status === 'waitlisted' ? ++waiting : null,
         ticketUrl: canManage ? this.link(r.ticketCode) : undefined,
+        answers: canManage ? r.answers : undefined,
         createdAt: r.createdAt,
         checkedInAt: r.checkedInAt,
       })),
@@ -474,15 +482,31 @@ export class RegistrationsService {
       .orderBy(asc(eventRegistrations.createdAt));
     const cell = (v: string) =>
       /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+    const columns = [
+      ...e.form.map((q) => ({ id: q.id, title: q.title })),
+      ...removedList(e).map((q) => ({
+        id: q.id,
+        title: `${q.title} (removed)`,
+      })),
+    ];
+    const answer = (v: string | string[] | undefined) =>
+      Array.isArray(v) ? v.join('; ') : (v ?? '');
     const lines = [
-      'Name,Email,Phone,Faculty,Year,Status,Registered at,Checked in at',
+      [
+        'Name',
+        'Email',
+        ...columns.map((c) => c.title),
+        'Status',
+        'Registered at',
+        'Checked in at',
+      ]
+        .map(cell)
+        .join(','),
       ...rows.map((r) =>
         [
           r.name,
           r.email,
-          r.phone,
-          r.faculty,
-          r.year,
+          ...columns.map((c) => answer(r.answers[c.id])),
           r.checkedInAt ? 'checked in' : r.status,
           cairoDateTime(r.createdAt),
           r.checkedInAt ? cairoDateTime(r.checkedInAt) : '',

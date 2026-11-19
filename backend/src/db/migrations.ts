@@ -306,4 +306,16 @@ INSERT INTO events (title, category, description, venue, starts_at, registration
 ALTER TABLE event_registrations ADD COLUMN cancel_notice_sent_at timestamptz;
 `,
   },
+  {
+    // Custom registration forms: the old fixed phone/faculty/year fields
+    // become the default questions, and existing answers move with them.
+    id: '008_event_forms',
+    sql: `
+ALTER TABLE events ADD COLUMN form jsonb NOT NULL DEFAULT '[{"id":"phone","type":"short","title":"Phone","required":true},{"id":"faculty","type":"short","title":"Faculty","required":true},{"id":"year","type":"short","title":"Academic year","required":true}]'::jsonb;
+ALTER TABLE events ADD COLUMN removed_questions jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE event_registrations ADD COLUMN answers jsonb NOT NULL DEFAULT '{}'::jsonb;
+UPDATE event_registrations SET answers = jsonb_build_object('phone', phone, 'faculty', faculty, 'year', year);
+ALTER TABLE event_registrations DROP COLUMN phone, DROP COLUMN faculty, DROP COLUMN year;
+`,
+  },
 ];

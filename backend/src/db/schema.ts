@@ -10,6 +10,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { type Answers, DEFAULT_FORM, type Question } from '../events/forms';
 
 const id = () => uuid('id').primaryKey().defaultRandom();
 const createdAt = () =>
@@ -230,6 +231,13 @@ export const events = pgTable('events', {
   }),
   highlight: text('highlight'),
   partners: jsonb('partners').$type<string[]>().notNull().default([]),
+  /** The registration form (see events/forms.ts). */
+  form: jsonb('form').$type<Question[]>().notNull().default(DEFAULT_FORM),
+  /** Titles of deleted questions that still have answers: {id: title}. */
+  removedQuestions: jsonb('removed_questions')
+    .$type<Record<string, string>>()
+    .notNull()
+    .default({}),
   /** Attendance for events that predate check-in. */
   manualAttendance: integer('manual_attendance'),
   coverVersion: integer('cover_version').notNull().default(0),
@@ -246,9 +254,8 @@ export const eventRegistrations = pgTable('event_registrations', {
     .references(() => events.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   email: text('email').notNull(), // lower-case
-  phone: text('phone').notNull(),
-  faculty: text('faculty').notNull(),
-  year: text('year').notNull(),
+  /** Answers to the event's form: {questionId: text or list}. */
+  answers: jsonb('answers').$type<Answers>().notNull().default({}),
   status: text('status')
     .$type<'confirmed' | 'waitlisted' | 'cancelled'>()
     .notNull(),
