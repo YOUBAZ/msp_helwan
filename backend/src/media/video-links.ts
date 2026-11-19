@@ -70,8 +70,15 @@ export function parseVideoLink(raw: string): VideoLink {
     };
   }
 
-  if (host === 'drive.google.com' && parts[0] === 'file' && parts[1] === 'd') {
-    const id = parts[2];
+  if (host === 'drive.google.com') {
+    // /file/d/<id>/…, /file/u/<n>/d/<id>/…, or /open?id=<id>
+    const d = parts.indexOf('d');
+    const id =
+      parts[0] === 'file' && d > 0
+        ? parts[d + 1]
+        : parts[0] === 'open'
+          ? url.searchParams.get('id')
+          : null;
     if (!id || !/^[\w-]+$/.test(id)) throw new BadRequestException(UNSUPPORTED);
     return {
       provider: 'drive',

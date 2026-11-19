@@ -35,6 +35,16 @@ describe('parseVideoLink', () => {
     expect(v.thumbnailUrl).toBeNull();
   });
 
+  it.each([
+    'https://drive.google.com/open?id=1AbC_dEf',
+    'https://drive.google.com/file/u/0/d/1AbC_dEf/view',
+    'https://drive.google.com/file/d/1AbC_dEf',
+  ])('recognises the Google Drive link form %s', (url) => {
+    expect(parseVideoLink(url).embedUrl).toBe(
+      'https://drive.google.com/file/d/1AbC_dEf/preview',
+    );
+  });
+
   it('recognises a Google Drive file link', () => {
     expect(
       parseVideoLink(
