@@ -82,7 +82,22 @@ export default function AlbumEditorPage() {
   if (missing) {
     return <Empty text="This album doesn't exist anymore." />;
   }
-  if (!album) return null;
+  if (!album) {
+    // Still loading, or the first load failed: never leave a blank page.
+    return error ? (
+      <div className="space-y-4">
+        <Empty text={`This album couldn't be loaded: ${error}`} />
+        <Link
+          href="/dashboard/media"
+          className="inline-flex items-center gap-2 text-slate-400 hover:text-blue-900 text-xs font-black uppercase tracking-widest"
+        >
+          <ArrowLeft size={14} /> All albums
+        </Link>
+      </div>
+    ) : (
+      <p className="text-slate-400 font-black uppercase tracking-widest text-xs">Loading…</p>
+    );
+  }
 
   // Same rule as the public page: the first photo is the cover.
   const coverId = album.items.find((i) => i.kind === "photo")?.id;
