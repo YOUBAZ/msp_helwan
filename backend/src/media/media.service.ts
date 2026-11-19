@@ -45,6 +45,8 @@ export type UploadedFile = { buffer: Buffer; size: number };
 
 const DEFAULT_BUDGET = 400 * 1024 * 1024;
 const MAX_FILE = 2 * 1024 * 1024;
+/** Postgres advisory-lock key serialising photo uploads (budget check). */
+const UPLOAD_LOCK = 726356;
 const FULL_MESSAGE =
   'Media storage is full: remove photos or move to a bigger storage plan.';
 
@@ -319,12 +321,23 @@ export class MediaService {
         throw new BadRequestException('Please upload JPG, PNG or WebP images.');
       return { variant, mime, data: file.buffer, bytes: file.size };
     });
-    const { usedBytes, budgetBytes } = await this.usage();
-    if (usedBytes + full.size + small.size > budgetBytes) {
-      throw new PayloadTooLargeException(FULL_MESSAGE);
-    }
-    const sortOrder = await this.nextItemOrder(albumId);
     const item = await this.db.transaction(async (tx) => {
+      // One upload at a time checks the space and saves, so two people
+      // uploading at once can't both squeeze in past the budget.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${UPLOAD_LOCK})`);
+      const [used] = await tx
+        .select({
+          bytes: sql<string | number | null>`sum(${mediaBlobs.bytes})`,
+        })
+        .from(mediaBlobs);
+      if (Number(used.bytes ?? 0) + full.size + small.size > this.budget()) {
+        throw new PayloadTooLargeException(FULL_MESSAGE);
+      }
+      const [max] = await tx
+        .select({ order: sql<number | null>`max(${mediaItems.sortOrder})` })
+        .from(mediaItems)
+        .where(eq(mediaItems.albumId, albumId));
+      const sortOrder = (max.order ?? -1) + 1;
       const [row] = await tx
         .insert(mediaItems)
         .values({ albumId, kind: 'photo', sortOrder })

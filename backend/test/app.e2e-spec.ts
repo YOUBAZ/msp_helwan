@@ -1013,6 +1013,24 @@ describe('MSP Tech Club API (e2e)', () => {
         .expect(404);
     });
 
+    it('never lets two simultaneous uploads overshoot the budget', async () => {
+      const album = await newAlbum('Race album');
+      const { usedBytes } = (
+        await http().get(A('/usage')).set(bearer(president)).expect(200)
+      ).body as { usedBytes: number };
+      // Room for exactly one photo (full + small = 2 x PNG).
+      process.env.MEDIA_BUDGET_BYTES = String(usedBytes + PNG.length * 2 + 10);
+      try {
+        const results = await Promise.all([
+          uploadPhoto(album.id),
+          uploadPhoto(album.id),
+        ]);
+        expect(results.map((r) => r.status).sort()).toEqual([201, 413]);
+      } finally {
+        delete process.env.MEDIA_BUDGET_BYTES;
+      }
+    });
+
     it('lists categories', async () => {
       const cats = (
         await http().get(A('/categories')).set(bearer(president)).expect(200)
