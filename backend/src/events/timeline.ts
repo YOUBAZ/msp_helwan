@@ -56,3 +56,18 @@ const cairoLong = new Intl.DateTimeFormat('en-GB', {
 export function formatCairo(d: Date): string {
   return cairoLong.format(d).replace(', ', ' ').replace(' at ', ' at ');
 }
+
+const cairoShort = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Africa/Cairo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
+
+/** "2026-03-01 10:00" in Cairo time, for spreadsheets. */
+export function cairoDateTime(d: Date): string {
+  return cairoShort.format(d).replace(',', '');
+}

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MediaModule } from '../media/media.module';
 import {
   AdminEventsController,
+  BoardRegistrationsController,
   PublicEventsController,
   TicketsController,
 } from './events.controller';
@@ -14,6 +15,7 @@ import { RegistrationsService } from './registrations.service';
     PublicEventsController,
     TicketsController,
     AdminEventsController,
+    BoardRegistrationsController,
   ],
   providers: [EventsService, RegistrationsService],
 })

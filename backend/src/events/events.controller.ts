@@ -16,9 +16,9 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SkipThrottle } from '@nestjs/throttler';
 import type { Response } from 'express';
-import { Auth } from '../access/auth.guard';
+import { Auth, AuthAny } from '../access/auth.guard';
 import { Throttle } from '@nestjs/throttler';
-import { CreateEventDto, RegisterDto, UpdateEventDto } from './dto';
+import { CheckInDto, CreateEventDto, RegisterDto, UpdateEventDto } from './dto';
 import { EventsService } from './events.service';
 import { RegistrationsService } from './registrations.service';
 
@@ -149,5 +149,59 @@ export class AdminEventsController {
   @HttpCode(204)
   removeCover(@Param('id', ParseUUIDPipe) id: string) {
     return this.events.removeCover(id);
+  }
+}
+
+/** Registrations and door check-in: "events.manage" or "events.checkin". */
+@Controller('admin')
+export class BoardRegistrationsController {
+  constructor(private readonly registrations: RegistrationsService) {}
+
+  @Get('events/:id/registrations')
+  @AuthAny('events.manage', 'events.checkin')
+  list(@Param('id', ParseUUIDPipe) id: string) {
+    return this.registrations.boardList(id);
+  }
+
+  @Post('events/:id/checkin')
+  @HttpCode(200)
+  @AuthAny('events.manage', 'events.checkin')
+  checkin(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CheckInDto) {
+    return this.registrations.checkinByCode(id, dto.code);
+  }
+
+  @Post('registrations/:id/checkin')
+  @HttpCode(200)
+  @AuthAny('events.manage', 'events.checkin')
+  checkinById(@Param('id', ParseUUIDPipe) id: string) {
+    return this.registrations.checkinById(id);
+  }
+
+  @Get('events/:id/registrations.csv')
+  @Auth('events.manage')
+  async csv(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { filename, body } = await this.registrations.csv(id);
+    res.set({
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    });
+    return body;
+  }
+
+  @Post('registrations/:id/promote')
+  @HttpCode(204)
+  @Auth('events.manage')
+  promote(@Param('id', ParseUUIDPipe) id: string) {
+    return this.registrations.promote(id);
+  }
+
+  @Post('registrations/:id/cancel')
+  @HttpCode(204)
+  @Auth('events.manage')
+  cancel(@Param('id', ParseUUIDPipe) id: string) {
+    return this.registrations.cancelByBoard(id);
   }
 }

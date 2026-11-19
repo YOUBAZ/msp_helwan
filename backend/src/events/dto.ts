@@ -156,3 +156,10 @@ export class RegisterDto {
   @MaxLength(0, { message: 'Something went wrong. Please try again.' })
   website?: string;
 }
+
+export class CheckInDto {
+  /** The ticket code, or the full ticket link read from the QR code. */
+  @IsString()
+  @Length(1, 500)
+  code!: string;
+}

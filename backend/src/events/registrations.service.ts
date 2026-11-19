@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { and, asc, count, eq, inArray, lt, ne } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, isNull, lt, ne } from 'drizzle-orm';
 import { uniqueViolation } from '../access/roles.service';
 import { frontendUrl } from '../common/frontend-url';
 import { DB, type Database } from '../db/database';
@@ -28,8 +28,14 @@ import {
   registrationState,
   toPublic,
 } from './serialize';
-import { newTicketCode, qrDataUrl, qrPng, ticketUrl } from './tickets';
-import { phase } from './timeline';
+import {
+  codeFrom,
+  newTicketCode,
+  qrDataUrl,
+  qrPng,
+  ticketUrl,
+} from './tickets';
+import { cairoDateTime, phase } from './timeline';
 
 export type Registration = typeof eventRegistrations.$inferSelect;
 export type RegisterInput = {
@@ -369,5 +375,169 @@ export class RegistrationsService {
       );
     }
     await this.db.delete(events).where(eq(events.id, id));
+  }
+
+  // ---------- Board: registrations, CSV, check-in ----------
+
+  async boardList(eventId: string) {
+    const event = await this.events.adminEvent(eventId);
+    const rows = await this.db
+      .select()
+      .from(eventRegistrations)
+      .where(eq(eventRegistrations.eventId, eventId))
+      .orderBy(asc(eventRegistrations.createdAt));
+    let waiting = 0;
+    return {
+      event,
+      registrations: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        phone: r.phone,
+        faculty: r.faculty,
+        year: r.year,
+        status: r.status,
+        position: r.status === 'waitlisted' ? ++waiting : null,
+        ticketUrl: this.link(r.ticketCode),
+        createdAt: r.createdAt,
+        checkedInAt: r.checkedInAt,
+      })),
+    };
+  }
+
+  /** CSV for Excel: UTF-8 with BOM so Arabic names display correctly. */
+  async csv(eventId: string) {
+    const e = await this.events.row(eventId);
+    const rows = await this.db
+      .select()
+      .from(eventRegistrations)
+      .where(eq(eventRegistrations.eventId, eventId))
+      .orderBy(asc(eventRegistrations.createdAt));
+    const cell = (v: string) =>
+      /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+    const lines = [
+      'Name,Email,Phone,Faculty,Year,Status,Registered at,Checked in at',
+      ...rows.map((r) =>
+        [
+          r.name,
+          r.email,
+          r.phone,
+          r.faculty,
+          r.year,
+          r.checkedInAt ? 'checked in' : r.status,
+          cairoDateTime(r.createdAt),
+          r.checkedInAt ? cairoDateTime(r.checkedInAt) : '',
+        ]
+          .map(cell)
+          .join(','),
+      ),
+    ];
+    const slug =
+      e.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '') || 'event';
+    return {
+      filename: `${slug}-registrations.csv`,
+      body: '\uFEFF' + lines.join('\r\n') + '\r\n',
+    };
+  }
+
+  /** Board moves someone in from the waiting list (even past capacity). */
+  async promote(registrationId: string) {
+    const [r] = await this.db
+      .select()
+      .from(eventRegistrations)
+      .where(eq(eventRegistrations.id, registrationId));
+    if (!r) throw new NotFoundException('Registration not found.');
+    if (r.status !== 'waitlisted') {
+      throw new BadRequestException(
+        'Only people on the waiting list can be moved in.',
+      );
+    }
+    const [updated] = await this.db
+      .update(eventRegistrations)
+      .set({ status: 'confirmed', confirmedAt: new Date() })
+      .where(eq(eventRegistrations.id, r.id))
+      .returning();
+    await this.sendTicket(updated, await this.events.row(r.eventId), true);
+  }
+
+  private async checkinCounts(eventId: string) {
+    const c = (await this.events.counts([eventId])).get(eventId) ?? NO_COUNTS;
+    return { checkedIn: c.checkedIn, confirmed: c.confirmed };
+  }
+
+  private async checkinRow(eventId: string, r: Registration | undefined) {
+    const brief = (x: Registration) => ({
+      id: x.id,
+      name: x.name,
+      status: x.status,
+      checkedInAt: x.checkedInAt,
+    });
+    if (!r)
+      return {
+        result: 'invalid' as const,
+        ...(await this.checkinCounts(eventId)),
+      };
+    if (r.eventId !== eventId) {
+      return {
+        result: 'wrong_event' as const,
+        registration: brief(r),
+        ...(await this.checkinCounts(eventId)),
+      };
+    }
+    if (r.status !== 'confirmed') {
+      return {
+        result: r.status,
+        registration: brief(r),
+        ...(await this.checkinCounts(eventId)),
+      };
+    }
+    // Only the first scan wins, even if two volunteers scan at once.
+    const [done] = await this.db
+      .update(eventRegistrations)
+      .set({ checkedInAt: new Date() })
+      .where(
+        and(
+          eq(eventRegistrations.id, r.id),
+          isNull(eventRegistrations.checkedInAt),
+        ),
+      )
+      .returning();
+    if (!done) {
+      const [now] = await this.db
+        .select()
+        .from(eventRegistrations)
+        .where(eq(eventRegistrations.id, r.id));
+      return {
+        result: 'already' as const,
+        registration: brief(now),
+        ...(await this.checkinCounts(eventId)),
+      };
+    }
+    return {
+      result: 'checked_in' as const,
+      registration: brief(done),
+      ...(await this.checkinCounts(eventId)),
+    };
+  }
+
+  async checkinByCode(eventId: string, input: string) {
+    await this.events.row(eventId);
+    const [r] = await this.db
+      .select()
+      .from(eventRegistrations)
+      .where(eq(eventRegistrations.ticketCode, codeFrom(input)));
+    return this.checkinRow(eventId, r);
+  }
+
+  async checkinById(registrationId: string) {
+    const [r] = await this.db
+      .select()
+      .from(eventRegistrations)
+      .where(eq(eventRegistrations.id, registrationId));
+    if (!r) throw new NotFoundException('Registration not found.');
+    return this.checkinRow(r.eventId, r);
   }
 }

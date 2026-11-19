@@ -1420,6 +1420,191 @@ describe('MSP Tech Club API (e2e)', () => {
       );
     });
 
+    type RegRow = {
+      id: string;
+      name: string;
+      email: string;
+      status: string;
+      position: number | null;
+      ticketUrl: string;
+      checkedInAt: string | null;
+    };
+    type CheckIn = {
+      result: string;
+      registration?: {
+        id: string;
+        name: string;
+        status: string;
+        checkedInAt: string | null;
+      };
+      checkedIn: number;
+      confirmed: number;
+    };
+    let volunteer = '';
+    const regs = async (id: string, token = president) =>
+      (
+        (
+          await http()
+            .get(E(`/${id}/registrations`))
+            .set(bearer(token))
+            .expect(200)
+        ).body as {
+          registrations: RegRow[];
+        }
+      ).registrations;
+    const scan = async (id: string, code: string, token = president) =>
+      (
+        await http()
+          .post(E(`/${id}/checkin`))
+          .set(bearer(token))
+          .send({ code })
+          .expect(200)
+      ).body as CheckIn;
+
+    it('lets a check-in-only role list and check in, nothing more', async () => {
+      const role = (
+        await http()
+          .post('/api/roles')
+          .set(bearer(president))
+          .send({ name: 'Door Volunteer', permissions: ['events.checkin'] })
+          .expect(201)
+      ).body as { id: string };
+      volunteer = await inviteAndJoin(
+        president,
+        'door@test.dev',
+        [role.id],
+        'door-pass-1',
+      );
+      const ev = await openEvent({ capacity: 3 });
+      const t = (await register(ev.id, 'guest1@test.dev').expect(201)).body as {
+        ticketCode: string;
+      };
+      const list = await regs(ev.id, volunteer);
+      expect(list[0]).toMatchObject({
+        email: 'guest1@test.dev',
+        status: 'confirmed',
+      });
+      expect(list[0].ticketUrl).toContain(`/tickets/${t.ticketCode}`);
+      expect((await scan(ev.id, t.ticketCode, volunteer)).result).toBe(
+        'checked_in',
+      );
+      await http()
+        .get(E(`/${ev.id}/registrations.csv`))
+        .set(bearer(volunteer))
+        .expect(403);
+      await http()
+        .post(`/api/admin/registrations/${list[0].id}/promote`)
+        .set(bearer(volunteer))
+        .expect(403);
+      await http()
+        .post(`/api/admin/registrations/${list[0].id}/cancel`)
+        .set(bearer(volunteer))
+        .expect(403);
+      await http()
+        .patch(E(`/${ev.id}`))
+        .set(bearer(volunteer))
+        .send({ title: 'Nope nope' })
+        .expect(403);
+      await http().get(E()).set(bearer(volunteer)).expect(403);
+    });
+
+    it('checks in by scanning once', async () => {
+      const ev = await openEvent();
+      const t = (await register(ev.id, 'scan@test.dev').expect(201)).body as {
+        ticketCode: string;
+      };
+      const first = await scan(
+        ev.id,
+        `http://localhost:3001/tickets/${t.ticketCode}`,
+      );
+      expect(first).toMatchObject({
+        result: 'checked_in',
+        checkedIn: 1,
+        confirmed: 1,
+      });
+      const again = await scan(ev.id, t.ticketCode);
+      expect(again.result).toBe('already');
+      expect(again.registration?.checkedInAt).toBeTruthy();
+      const byId = (
+        await http()
+          .post(`/api/admin/registrations/${first.registration!.id}/checkin`)
+          .set(bearer(president))
+          .expect(200)
+      ).body as CheckIn;
+      expect(byId.result).toBe('already');
+    });
+
+    it('refuses waitlisted, cancelled, wrong event and unknown codes', async () => {
+      const ev = await openEvent({ capacity: 1 });
+      const other = await openEvent();
+      const a = (await register(ev.id, 'w1@test.dev').expect(201)).body as {
+        ticketCode: string;
+      };
+      const b = (await register(ev.id, 'w2@test.dev').expect(201)).body as {
+        ticketCode: string;
+      };
+      const c = (await register(other.id, 'w3@test.dev').expect(201)).body as {
+        ticketCode: string;
+      };
+      expect((await scan(ev.id, b.ticketCode)).result).toBe('waitlisted');
+      expect((await scan(ev.id, c.ticketCode)).result).toBe('wrong_event');
+      expect((await scan(ev.id, 'nonsense-code')).result).toBe('invalid');
+      await http().post(`/api/tickets/${a.ticketCode}/cancel`).expect(200);
+      expect((await scan(ev.id, a.ticketCode)).result).toBe('cancelled');
+      expect((await ticket(c.ticketCode)).checkedInAt).toBeNull();
+    });
+
+    it('exports registrations as CSV for Excel', async () => {
+      const ev = await openEvent();
+      await register(ev.id, 'csv@test.dev', { name: 'مريم خالد' }).expect(201);
+      const res = await http()
+        .get(E(`/${ev.id}/registrations.csv`))
+        .set(bearer(president))
+        .expect(200);
+      expect(res.headers['content-type']).toMatch(/text\/csv/);
+      expect(res.headers['content-disposition']).toMatch(
+        /attachment; filename=".+\.csv"/,
+      );
+      const text = res.text;
+      expect(text.charCodeAt(0)).toBe(0xfeff);
+      const [header, row] = text.slice(1).trim().split('\r\n');
+      expect(header).toBe(
+        'Name,Email,Phone,Faculty,Year,Status,Registered at,Checked in at',
+      );
+      expect(row).toContain('مريم خالد');
+      expect(row).toContain('csv@test.dev');
+    });
+
+    it('lets managers move people in and cancel them, with emails', async () => {
+      const ev = await openEvent({ capacity: 1 });
+      await register(ev.id, 'm1@test.dev').expect(201);
+      await register(ev.id, 'm2@test.dev').expect(201);
+      await register(ev.id, 'm3@test.dev').expect(201);
+      let list = await regs(ev.id);
+      const m2 = list.find((r) => r.email === 'm2@test.dev')!;
+      expect(m2).toMatchObject({ status: 'waitlisted', position: 1 });
+      await http()
+        .post(`/api/admin/registrations/${m2.id}/promote`)
+        .set(bearer(president))
+        .expect(204);
+      expect(lastMailTo('m2@test.dev')!.subject).toMatch(/ticket/i);
+      list = await regs(ev.id);
+      expect(list.filter((r) => r.status === 'confirmed')).toHaveLength(2); // allowed past capacity
+      const m1 = list.find((r) => r.email === 'm1@test.dev')!;
+      await http()
+        .post(`/api/admin/registrations/${m1.id}/cancel`)
+        .set(bearer(president))
+        .expect(204);
+      expect(lastMailTo('m1@test.dev')!.subject).toMatch(
+        /registration cancelled/i,
+      );
+      list = await regs(ev.id);
+      // still 1 confirmed over capacity, so m3 stays on the waiting list
+      expect(list.find((r) => r.email === 'm3@test.dev')!.status).toBe(
+        'waitlisted',
+      );
+    });
+
     it('adds the two event permissions', async () => {
       const perms = (
         await http().get('/api/permissions').set(bearer(president)).expect(200)
