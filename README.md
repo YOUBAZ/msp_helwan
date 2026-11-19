@@ -100,6 +100,12 @@ Albums, photos and videos are managed in **Dashboard → Media** by roles with t
 
 The original 37 photos were imported into the database once (November 2026) and their files removed from the website.
 
+## Events
+
+Events, registrations and door check-in are managed in **Dashboard → Events** (permissions "Manage events" and "Check people in"). Students register without an account and get a ticket page plus an email with a QR code; the board scans it in **Check-in**.
+
+**Reminder emails** are sent the day before each event by a Vercel Cron job (`backend/vercel.json`: 06:00 and 09:00 UTC, i.e. 08:00/11:00 Cairo in winter, 09:00/12:00 in summer) calling `/api/cron/event-reminders`. Set `CRON_SECRET` (any long random string) in the backend's Vercel environment variables. Gmail allows about 500 emails a day: above roughly 300–400 emails in one day, switch to a dedicated email service (settings only).
+
 ## Tests
 
 ```bash

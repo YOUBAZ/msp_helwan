@@ -8,6 +8,7 @@ import {
 } from './events.controller';
 import { EventsService } from './events.service';
 import { RegistrationsService } from './registrations.service';
+import { RemindersController } from './reminders.controller';
 
 @Module({
   imports: [MediaModule],
@@ -16,6 +17,7 @@ import { RegistrationsService } from './registrations.service';
     TicketsController,
     AdminEventsController,
     BoardRegistrationsController,
+    RemindersController,
   ],
   providers: [EventsService, RegistrationsService],
 })

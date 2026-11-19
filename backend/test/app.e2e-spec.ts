@@ -1605,6 +1605,62 @@ describe('MSP Tech Club API (e2e)', () => {
       );
     });
 
+    it('emails reminders the day before, once, only to confirmed people', async () => {
+      const runCron = (auth?: string) => {
+        const req = http().get('/api/cron/event-reminders');
+        return auth ? req.set('Authorization', auth) : req;
+      };
+      process.env.CRON_SECRET = 'cron-test-secret';
+      try {
+        await runCron().expect(401);
+        await runCron('Bearer wrong').expect(401);
+        const tomorrow = await openEvent({
+          capacity: 2,
+          startsAt: inHours(24),
+        });
+        const today = await openEvent({ startsAt: inHours(0.05) });
+        const later = await openEvent({ startsAt: inHours(49) });
+        for (const who of ['r1', 'r2', 'r3', 'r4']) {
+          await register(tomorrow.id, `${who}@remind.dev`).expect(201);
+        }
+        const r4 = (await regs(tomorrow.id)).find(
+          (r) => r.email === 'r4@remind.dev',
+        )!;
+        await http()
+          .post(`/api/admin/registrations/${r4.id}/cancel`)
+          .set(bearer(president))
+          .expect(204);
+        await register(today.id, 'today@remind.dev').expect(201);
+        await register(later.id, 'later@remind.dev').expect(201);
+
+        const first = (await runCron('Bearer cron-test-secret').expect(200))
+          .body as {
+          sent: number;
+          failed: number;
+          remaining: number;
+        };
+        expect(first).toEqual({ sent: 2, failed: 0, remaining: 0 });
+        for (const who of ['r1', 'r2']) {
+          const m = lastMailTo(`${who}@remind.dev`)!;
+          expect(m.subject).toMatch(/^Tomorrow:/);
+          expect(m.attachments?.[0]?.cid).toBe('ticket-qr');
+        }
+        expect(lastMailTo('r3@remind.dev')!.subject).not.toMatch(/^Tomorrow:/);
+        expect(lastMailTo('today@remind.dev')!.subject).not.toMatch(
+          /^Tomorrow:/,
+        );
+        expect(lastMailTo('later@remind.dev')!.subject).not.toMatch(
+          /^Tomorrow:/,
+        );
+
+        const second = (await runCron('Bearer cron-test-secret').expect(200))
+          .body as { sent: number };
+        expect(second.sent).toBe(0);
+      } finally {
+        delete process.env.CRON_SECRET;
+      }
+    });
+
     it('adds the two event permissions', async () => {
       const perms = (
         await http().get('/api/permissions').set(bearer(president)).expect(200)

@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { and, asc, count, eq, inArray, isNull, lt, ne } from 'drizzle-orm';
+import { and, asc, count, eq, gt, inArray, isNull, lt, ne } from 'drizzle-orm';
 import { uniqueViolation } from '../access/roles.service';
 import { frontendUrl } from '../common/frontend-url';
 import { DB, type Database } from '../db/database';
@@ -18,6 +18,7 @@ import {
   eventCancelledEmail,
   eventChangedEmail,
   registrationCancelledEmail,
+  reminderEmail,
   ticketEmail,
   waitlistedEmail,
 } from './emails';
@@ -35,7 +36,7 @@ import {
   qrPng,
   ticketUrl,
 } from './tickets';
-import { cairoDateTime, phase } from './timeline';
+import { cairoDateTime, phase, startsTomorrowInCairo } from './timeline';
 
 export type Registration = typeof eventRegistrations.$inferSelect;
 export type RegisterInput = {
@@ -539,5 +540,64 @@ export class RegistrationsService {
       .where(eq(eventRegistrations.id, registrationId));
     if (!r) throw new NotFoundException('Registration not found.');
     return this.checkinRow(r.eventId, r);
+  }
+
+  // ---------- Reminders (daily cron) ----------
+
+  /**
+   * Email confirmed people about events starting tomorrow (Cairo), once each.
+   * Stops before `budgetMs` so the serverless function never times out; the
+   * second daily run picks up anything left.
+   */
+  async sendReminders(now = new Date(), budgetMs = 40_000) {
+    const startedAt = Date.now();
+    const soon = await this.db
+      .select()
+      .from(events)
+      .where(
+        and(
+          eq(events.published, true),
+          isNull(events.cancelledAt),
+          gt(events.startsAt, now),
+          lt(events.startsAt, new Date(now.getTime() + 3 * 24 * 3600 * 1000)),
+        ),
+      );
+    const due = soon.filter((e) => startsTomorrowInCairo(e.startsAt, now));
+    let sent = 0;
+    let failed = 0;
+    let remaining = 0;
+    for (const e of due) {
+      const people = await this.db
+        .select()
+        .from(eventRegistrations)
+        .where(
+          and(
+            eq(eventRegistrations.eventId, e.id),
+            eq(eventRegistrations.status, 'confirmed'),
+            isNull(eventRegistrations.reminderSentAt),
+          ),
+        )
+        .orderBy(asc(eventRegistrations.createdAt));
+      for (const r of people) {
+        if (Date.now() - startedAt > budgetMs) {
+          remaining++;
+          continue;
+        }
+        const link = this.link(r.ticketCode);
+        const ok = await this.mail.send(
+          reminderEmail(r, e, link, await qrPng(link)),
+        );
+        if (!ok) {
+          failed++;
+          continue;
+        }
+        await this.db
+          .update(eventRegistrations)
+          .set({ reminderSentAt: new Date() })
+          .where(eq(eventRegistrations.id, r.id));
+        sent++;
+      }
+    }
+    return { sent, failed, remaining };
   }
 }
