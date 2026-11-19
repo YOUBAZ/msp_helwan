@@ -21,6 +21,11 @@ type Me = {
   profile: Record<string, unknown> & { complete: boolean };
 };
 
+const PNG_1PX = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64',
+);
+
 describe('MSP Tech Club API (e2e)', () => {
   let app: INestApplication<App>;
   const http = () => request(app.getHttpServer());
@@ -1068,6 +1073,125 @@ describe('MSP Tech Club API (e2e)', () => {
   });
 
   describe('events', () => {
+    type Ev = {
+      id: string;
+      title: string;
+      phase: 'upcoming' | 'live' | 'past';
+      registration: 'open' | 'waitlist' | 'closed';
+      attendance: number | null;
+      coverUrl: string | null;
+      confirmed: number;
+      waitlisted: number;
+      cancelled: boolean;
+      published?: boolean;
+    };
+    type EventLists = { upcoming: Ev[]; live: Ev[]; past: Ev[] };
+    const E = (path = '') => `/api/admin/events${path}`;
+    const inHours = (h: number) =>
+      new Date(Date.now() + h * 3600 * 1000).toISOString();
+    const lists = async () =>
+      (await http().get('/api/events').expect(200)).body as EventLists;
+    const createEvent = async (fields: Record<string, unknown> = {}) =>
+      (
+        await http()
+          .post(E())
+          .set(bearer(president))
+          .send({
+            title: 'Test Event',
+            category: 'Workshop',
+            startsAt: inHours(48),
+            ...fields,
+          })
+          .expect(201)
+      ).body as Ev;
+    const publish = (id: string, extra: Record<string, unknown> = {}) =>
+      http()
+        .patch(E(`/${id}`))
+        .set(bearer(president))
+        .send({ published: true, venue: 'Hall A', ...extra })
+        .expect(200);
+
+    it('seeds the 4 past events', async () => {
+      const l = await lists();
+      expect(l.past.map((e) => e.title)).toEqual([
+        'Season Orientation 2026',
+        'AI Catalyst with Dotpy 2025',
+        'Battery Tech with Schneider Electric 2025',
+        'Orientation Day 2025',
+      ]);
+      expect(
+        l.past.find((e) => e.title.startsWith('AI Catalyst'))!.attendance,
+      ).toBe(200);
+      expect(l.upcoming).toEqual([]);
+      expect(l.past.every((e) => e.registration === 'closed')).toBe(true);
+    });
+
+    it('requires events.manage', async () => {
+      const m = await login('member@test.dev', 'password123');
+      await http().get(E()).set(bearer(m)).expect(403);
+      await http()
+        .post(E())
+        .set(bearer(m))
+        .send({ title: 'X event', category: 'Workshop', startsAt: inHours(5) })
+        .expect(403);
+    });
+
+    it('creates a hidden draft and publishes it', async () => {
+      const ev = await createEvent({ title: 'Draft Hackathon' });
+      expect(ev.published).toBe(false);
+      expect((await lists()).upcoming.some((e) => e.id === ev.id)).toBe(false);
+      await http().get(`/api/events/${ev.id}`).expect(404);
+      await publish(ev.id);
+      const up = (await lists()).upcoming.find((e) => e.id === ev.id)!;
+      expect(up.registration).toBe('open');
+      await http().get(`/api/events/${ev.id}`).expect(200);
+    });
+
+    it('computes upcoming/live/past from dates', async () => {
+      const live = await createEvent({
+        title: 'Live now',
+        startsAt: inHours(-1),
+      });
+      const done = await createEvent({ title: 'Done', startsAt: inHours(-4) });
+      await publish(live.id);
+      await publish(done.id);
+      const l = await lists();
+      expect(l.live.map((e) => e.id)).toContain(live.id);
+      expect(l.past.map((e) => e.id)).toContain(done.id);
+      expect(l.live.find((e) => e.id === live.id)!.registration).toBe('closed');
+    });
+
+    it('uploads a cover counted in the media budget', async () => {
+      const ev = await createEvent({ title: 'Covered' });
+      const before = (
+        (await http().get('/api/admin/media/usage').set(bearer(president)))
+          .body as {
+          usedBytes: number;
+        }
+      ).usedBytes;
+      await http()
+        .post(E(`/${ev.id}/cover`))
+        .set(bearer(president))
+        .attach('file', Buffer.from('nope'), 'x.png')
+        .expect(400);
+      const up = await http()
+        .post(E(`/${ev.id}/cover`))
+        .set(bearer(president))
+        .attach('file', PNG_1PX, 'c.png')
+        .expect(201);
+      const coverUrl = (up.body as Ev).coverUrl!;
+      expect(coverUrl).toMatch(new RegExp(`^/events/${ev.id}/cover\\?v=1$`));
+      const img = await http().get(`/api${coverUrl}`).expect(200);
+      expect(img.headers['content-type']).toBe('image/png');
+      const after = (
+        (await http().get('/api/admin/media/usage').set(bearer(president)))
+          .body as {
+          usedBytes: number;
+        }
+      ).usedBytes;
+      expect(after - before).toBe(PNG_1PX.length);
+    });
+
     it('adds the two event permissions', async () => {
       const perms = (
         await http().get('/api/permissions').set(bearer(president)).expect(200)

@@ -8,5 +8,6 @@ import { MediaService } from './media.service';
 @Module({
   controllers: [PublicMediaController, AdminMediaController],
   providers: [MediaService],
+  exports: [MediaService],
 })
 export class MediaModule {}
