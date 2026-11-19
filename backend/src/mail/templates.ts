@@ -1,10 +1,10 @@
 import type { Mail } from './mail.service';
 
-const esc = (s: string) =>
+export const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 /** Simple, email-client-safe layout in the club colours. */
-function layout(opts: {
+export function layout(opts: {
   heading: string;
   paragraphs: string[]; // already-escaped HTML
   button?: { label: string; url: string };

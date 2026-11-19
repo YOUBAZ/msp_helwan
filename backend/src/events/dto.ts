@@ -3,12 +3,14 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsEmail,
   IsInt,
   IsISO8601,
   IsOptional,
   IsString,
   IsUUID,
   Length,
+  Matches,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -113,4 +115,44 @@ export class UpdateEventDto {
   @IsOptional()
   @IsBoolean()
   notifyChanges?: boolean;
+}
+
+export class RegisterDto {
+  @Transform(trim)
+  @IsString()
+  @Length(2, 100, { message: 'Please enter your full name.' })
+  name!: string;
+
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsEmail({}, { message: 'Please enter a valid email address.' })
+  @MaxLength(254)
+  email!: string;
+
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : value,
+  )
+  @IsString()
+  @Matches(/^\+?\d[\d\s-]{6,18}\d$/, {
+    message:
+      'Please enter a valid phone number (digits, optional + at the start).',
+  })
+  phone!: string;
+
+  @Transform(trim)
+  @IsString()
+  @Length(2, 80, { message: 'Please enter your faculty.' })
+  faculty!: string;
+
+  @Transform(trim)
+  @IsString()
+  @Length(1, 20, { message: 'Please enter your academic year.' })
+  year!: string;
+
+  /** Hidden field: real people leave it empty. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(0, { message: 'Something went wrong. Please try again.' })
+  website?: string;
 }

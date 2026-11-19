@@ -1192,6 +1192,234 @@ describe('MSP Tech Club API (e2e)', () => {
       expect(after - before).toBe(PNG_1PX.length);
     });
 
+    type Ticket = {
+      status: 'confirmed' | 'waitlisted' | 'cancelled';
+      position: number | null;
+      name: string;
+      qr: string | null;
+      checkedInAt: string | null;
+      event: Ev;
+    };
+    const student = (email: string, extra: Record<string, unknown> = {}) => ({
+      name: 'Student Name',
+      email,
+      phone: '+20 100 000 0000',
+      faculty: 'Computer Science',
+      year: '3',
+      website: '',
+      ...extra,
+    });
+    const register = (
+      id: string,
+      email: string,
+      extra: Record<string, unknown> = {},
+    ) => http().post(`/api/events/${id}/register`).send(student(email, extra));
+    const ticket = async (code: string) =>
+      (await http().get(`/api/tickets/${code}`).expect(200)).body as Ticket;
+    const openEvent = async (fields: Record<string, unknown> = {}) => {
+      const ev = await createEvent({ title: 'Open Event' });
+      await publish(ev.id, fields);
+      return ev;
+    };
+
+    it('registers and emails a ticket with a QR attachment', async () => {
+      const ev = await openEvent();
+      const r = await register(ev.id, 'ticket@test.dev').expect(201);
+      const { ticketCode, status } = r.body as {
+        ticketCode: string;
+        status: string;
+      };
+      expect(status).toBe('confirmed');
+      const mail = lastMailTo('ticket@test.dev')!;
+      expect(mail.subject).toMatch(/ticket/i);
+      expect(mail.attachments?.[0]).toMatchObject({
+        cid: 'ticket-qr',
+        filename: 'ticket-qr.png',
+      });
+      expect(mail.html).toContain('cid:ticket-qr');
+      expect(mail.text).toContain(`/tickets/${ticketCode}`);
+      const t = await ticket(ticketCode);
+      expect(t).toMatchObject({
+        status: 'confirmed',
+        position: null,
+        name: 'Student Name',
+      });
+      expect(t.qr).toMatch(/^data:image\/png;base64,/);
+      await http().get('/api/tickets/not-a-real-code').expect(404);
+    });
+
+    it('treats the same email in any case as one person', async () => {
+      const ev = await openEvent();
+      await register(ev.id, ' Mona@Example.com ').expect(201);
+      const before = outbox.length;
+      const dup = await register(ev.id, 'mona@example.com').expect(409);
+      expect((dup.body as { message: string }).message).toMatch(
+        /already registered/,
+      );
+      expect(outbox.length).toBe(before + 1);
+      expect(outbox[outbox.length - 1].to).toBe('mona@example.com');
+    });
+
+    it('rejects honeypot and closed registration', async () => {
+      const ev = await openEvent();
+      await register(ev.id, 'bot@test.dev', { website: 'http://spam' }).expect(
+        400,
+      );
+      await register(ev.id, 'nophone@test.dev', { phone: 'call me' }).expect(
+        400,
+      );
+      await register(ev.id, 'nofac@test.dev', { faculty: '' }).expect(400);
+      await http()
+        .patch(E(`/${ev.id}`))
+        .set(bearer(president))
+        .send({ registrationOpen: false })
+        .expect(200);
+      await register(ev.id, 'late@test.dev').expect(400);
+      const draft = await createEvent({ title: 'Draft only' });
+      await register(draft.id, 'draft@test.dev').expect(404);
+    });
+
+    it('waitlists when full and auto-promotes on cancel', async () => {
+      const ev = await openEvent({ capacity: 1 });
+      const a = (await register(ev.id, 'a@wl.dev').expect(201)).body as {
+        ticketCode: string;
+      };
+      const b = (await register(ev.id, 'b@wl.dev').expect(201)).body as {
+        ticketCode: string;
+        status: string;
+      };
+      expect(b.status).toBe('waitlisted');
+      expect(lastMailTo('b@wl.dev')!.subject).toMatch(/waiting list/i);
+      expect((await ticket(b.ticketCode)).position).toBe(1);
+      const pub = (await http().get(`/api/events/${ev.id}`)).body as Ev;
+      expect(pub).toMatchObject({
+        registration: 'waitlist',
+        confirmed: 1,
+        waitlisted: 1,
+      });
+      await http().post(`/api/tickets/${a.ticketCode}/cancel`).expect(200);
+      expect((await ticket(a.ticketCode)).status).toBe('cancelled');
+      expect((await ticket(b.ticketCode)).status).toBe('confirmed');
+      const promoted = lastMailTo('b@wl.dev')!;
+      expect(promoted.subject).toMatch(/ticket/i);
+      expect(promoted.attachments?.[0]?.cid).toBe('ticket-qr');
+    });
+
+    it('gives the last seat to only one person', async () => {
+      const ev = await openEvent({ capacity: 1 });
+      const results = await Promise.all([
+        register(ev.id, 'race1@test.dev'),
+        register(ev.id, 'race2@test.dev'),
+      ]);
+      const statuses = results
+        .map((r) => (r.body as { status: string }).status)
+        .sort();
+      expect(statuses).toEqual(['confirmed', 'waitlisted']);
+    });
+
+    it('raising capacity promotes the waiting list', async () => {
+      const ev = await openEvent({ capacity: 1 });
+      await register(ev.id, 'cap1@test.dev').expect(201);
+      const w = (await register(ev.id, 'cap2@test.dev').expect(201)).body as {
+        ticketCode: string;
+      };
+      await http()
+        .patch(E(`/${ev.id}`))
+        .set(bearer(president))
+        .send({ capacity: 2 })
+        .expect(200);
+      expect((await ticket(w.ticketCode)).status).toBe('confirmed');
+      expect(lastMailTo('cap2@test.dev')!.subject).toMatch(/ticket/i);
+    });
+
+    it('refuses lowering capacity below confirmed and unpublishing with registrations', async () => {
+      const ev = await openEvent({ capacity: 5 });
+      await register(ev.id, 'low1@test.dev').expect(201);
+      await register(ev.id, 'low2@test.dev').expect(201);
+      const r = await http()
+        .patch(E(`/${ev.id}`))
+        .set(bearer(president))
+        .send({ capacity: 1 })
+        .expect(400);
+      expect((r.body as { message: string }).message).toMatch(
+        /2 people already confirmed/,
+      );
+      await http()
+        .patch(E(`/${ev.id}`))
+        .set(bearer(president))
+        .send({ published: false })
+        .expect(400);
+    });
+
+    it('deletes only events without registrations; cancel emails everyone', async () => {
+      const empty = await openEvent();
+      await http()
+        .delete(E(`/${empty.id}`))
+        .set(bearer(president))
+        .expect(204);
+      const ev = await openEvent({ capacity: 1 });
+      await register(ev.id, 'del1@test.dev').expect(201);
+      await register(ev.id, 'del2@test.dev').expect(201);
+      const r = await http()
+        .delete(E(`/${ev.id}`))
+        .set(bearer(president))
+        .expect(409);
+      expect((r.body as { message: string }).message).toMatch(
+        /cancel the event instead/,
+      );
+      await http()
+        .post(E(`/${ev.id}/cancel`))
+        .set(bearer(president))
+        .expect(200);
+      expect(lastMailTo('del1@test.dev')!.subject).toMatch(/cancelled/i);
+      expect(lastMailTo('del2@test.dev')!.subject).toMatch(/cancelled/i);
+      const pub = (await http().get(`/api/events/${ev.id}`)).body as Ev;
+      expect(pub).toMatchObject({ cancelled: true, registration: 'closed' });
+      await register(ev.id, 'del3@test.dev').expect(400);
+    });
+
+    it('notifies registrants of a date change and resets reminders', async () => {
+      const ev = await openEvent();
+      await register(ev.id, 'change@test.dev').expect(201);
+      const before = outbox.length;
+      await http()
+        .patch(E(`/${ev.id}`))
+        .set(bearer(president))
+        .send({ title: 'Renamed only', notifyChanges: true })
+        .expect(200);
+      expect(outbox.length).toBe(before); // no date/venue change -> no email
+      await http()
+        .patch(E(`/${ev.id}`))
+        .set(bearer(president))
+        .send({ startsAt: inHours(72), notifyChanges: true })
+        .expect(200);
+      expect(lastMailTo('change@test.dev')!.subject).toMatch(/changed/i);
+      const quiet = outbox.length;
+      await http()
+        .patch(E(`/${ev.id}`))
+        .set(bearer(president))
+        .send({ venue: 'Hall B', notifyChanges: false })
+        .expect(200);
+      expect(outbox.length).toBe(quiet);
+    });
+
+    it('refuses cancelling after the event started', async () => {
+      const ev = await openEvent();
+      const t = (await register(ev.id, 'started@test.dev').expect(201))
+        .body as { ticketCode: string };
+      await http()
+        .patch(E(`/${ev.id}`))
+        .set(bearer(president))
+        .send({ startsAt: inHours(-1) })
+        .expect(200);
+      const r = await http()
+        .post(`/api/tickets/${t.ticketCode}/cancel`)
+        .expect(400);
+      expect((r.body as { message: string }).message).toMatch(
+        /already started/,
+      );
+    });
+
     it('adds the two event permissions', async () => {
       const perms = (
         await http().get('/api/permissions').set(bearer(president)).expect(200)

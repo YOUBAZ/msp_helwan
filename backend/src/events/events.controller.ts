@@ -17,13 +17,24 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { SkipThrottle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { Auth } from '../access/auth.guard';
-import { CreateEventDto, UpdateEventDto } from './dto';
+import { Throttle } from '@nestjs/throttler';
+import { CreateEventDto, RegisterDto, UpdateEventDto } from './dto';
 import { EventsService } from './events.service';
+import { RegistrationsService } from './registrations.service';
 
 /** Public: Events page, event pages and cover photos. */
 @Controller('events')
 export class PublicEventsController {
-  constructor(private readonly events: EventsService) {}
+  constructor(
+    private readonly events: EventsService,
+    private readonly registrations: RegistrationsService,
+  ) {}
+
+  @Post(':id/register')
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  register(@Param('id', ParseUUIDPipe) id: string, @Body() dto: RegisterDto) {
+    return this.registrations.register(id, dto);
+  }
 
   @Get()
   list() {
@@ -51,11 +62,46 @@ export class PublicEventsController {
   }
 }
 
+/** Public: a person's ticket (the code in the link is the secret). */
+@Controller('tickets')
+export class TicketsController {
+  constructor(private readonly registrations: RegistrationsService) {}
+
+  @Get(':code')
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  ticket(@Param('code') code: string) {
+    return this.registrations.ticket(code);
+  }
+
+  @Post(':code/cancel')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  cancel(@Param('code') code: string) {
+    return this.registrations.cancelByTicket(code);
+  }
+}
+
 /** Managing events. Requires "events.manage". */
 @Controller('admin/events')
 @Auth('events.manage')
 export class AdminEventsController {
-  constructor(private readonly events: EventsService) {}
+  constructor(
+    private readonly events: EventsService,
+    private readonly registrations: RegistrationsService,
+  ) {}
+
+  @Post(':id/cancel')
+  @HttpCode(200)
+  async cancel(@Param('id', ParseUUIDPipe) id: string) {
+    await this.registrations.cancelEvent(id);
+    return this.events.adminEvent(id);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  remove(@Param('id', ParseUUIDPipe) id: string) {
+    return this.registrations.deleteEvent(id);
+  }
 
   @Get()
   list() {
@@ -82,7 +128,7 @@ export class AdminEventsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateEventDto,
   ) {
-    await this.events.applyUpdate(id, dto);
+    await this.registrations.updateEvent(id, dto);
     return this.events.adminEvent(id);
   }
 

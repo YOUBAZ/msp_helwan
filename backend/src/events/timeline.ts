@@ -40,3 +40,19 @@ export function startsTomorrowInCairo(startsAt: Date, now: Date): boolean {
     .slice(0, 10);
   return cairoDate(startsAt) === tomorrow;
 }
+
+const cairoLong = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Africa/Cairo',
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: true,
+});
+
+/** "Monday 3 March 2026 at 10:00 am" in Cairo time, for emails. */
+export function formatCairo(d: Date): string {
+  return cairoLong.format(d).replace(', ', ' ').replace(' at ', ' at ');
+}
