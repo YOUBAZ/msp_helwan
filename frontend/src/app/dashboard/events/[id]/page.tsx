@@ -33,15 +33,15 @@ import { API_URL } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { coverSrc, formatCairo, fromCairoInput, toCairoInput } from "@/lib/events";
 import { photoVersions } from "@/lib/image";
-import type { AdminEvent, MediaAlbum } from "@/lib/types";
+import FormBuilder from "@/components/dashboard/FormBuilder";
+import type { AdminEvent, Answers, MediaAlbum, Question } from "@/lib/types";
 
 type Reg = {
   id: string;
   name: string;
   email: string;
-  phone: string;
-  faculty: string;
-  year: string;
+  /** Only for people who can manage events. */
+  answers?: Answers;
   status: "confirmed" | "waitlisted" | "cancelled";
   position: number | null;
   /** Only for people who can manage events (a ticket link can cancel). */
@@ -54,7 +54,7 @@ export default function EventEditorPage() {
   const { id } = useParams<{ id: string }>();
   const { can } = useAuth();
   const manage = can("events.manage");
-  const [tab, setTab] = useState<"details" | "registrations">(manage ? "details" : "registrations");
+  const [tab, setTab] = useState<"details" | "form" | "registrations">(manage ? "details" : "registrations");
   if (!manage && !can("events.checkin")) return <Empty text="You don't have permission to see this event." />;
   return (
     <>
@@ -66,7 +66,7 @@ export default function EventEditorPage() {
       </Link>
       {manage && (
         <div className="flex flex-wrap gap-2 mb-6">
-          {(["details", "registrations"] as const).map((t) => (
+          {(["details", "form", "registrations"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -79,7 +79,7 @@ export default function EventEditorPage() {
           ))}
         </div>
       )}
-      {tab === "details" && manage ? <Details id={id} /> : <Registrations id={id} />}
+      {tab === "details" && manage ? <Details id={id} /> : tab === "form" && manage ? <FormTab id={id} /> : <Registrations id={id} />}
     </>
   );
 }
@@ -391,7 +391,13 @@ function Details({ id }: { id: string }) {
 function Registrations({ id }: { id: string }) {
   const { call, can, token } = useAuth();
   const manage = can("events.manage");
-  const [data, setData] = useState<{ event: AdminEvent; registrations: Reg[] } | null>(null);
+  const [data, setData] = useState<{
+    event: AdminEvent;
+    form: Question[];
+    removedQuestions: { id: string; title: string }[];
+    registrations: Reg[];
+  } | null>(null);
+  const [open, setOpen] = useState<Record<string, boolean>>({});
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "confirmed" | "waitlisted" | "cancelled" | "in">("all");
   const [error, setError] = useState("");
@@ -415,7 +421,7 @@ function Registrations({ id }: { id: string }) {
       (r) =>
         (filter === "all" ||
           (filter === "in" ? !!r.checkedInAt : r.status === filter)) &&
-        (!needle || `${r.name} ${r.email} ${r.phone}`.toLowerCase().includes(needle)),
+        (!needle || `${r.name} ${r.email} ${Object.values(r.answers ?? {}).flat().join(" ")}`.toLowerCase().includes(needle)),
     );
   }, [data, q, filter]);
 
@@ -509,7 +515,7 @@ function Registrations({ id }: { id: string }) {
       ) : (
         <div className="space-y-2">
           {rows.map((r) => (
-            <Card key={r.id} className="p-4 md:p-5 flex flex-col md:flex-row md:items-center gap-3">
+            <Card key={r.id} className="p-4 md:p-5 flex flex-col md:flex-row md:flex-wrap md:items-center gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-black text-blue-900">{r.name}</span>
@@ -524,10 +530,15 @@ function Registrations({ id }: { id: string }) {
                   )}
                 </div>
                 <p className="text-xs text-slate-500 mt-1 break-all">
-                  {r.email} · {r.phone} · {r.faculty}, year {r.year}
+                  {r.email}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2 shrink-0">
+                {r.answers && (
+                  <Button variant="ghost" aria-expanded={!!open[r.id]} onClick={() => setOpen((o) => ({ ...o, [r.id]: !o[r.id] }))}>
+                    {open[r.id] ? "Hide answers" : "Answers"}
+                  </Button>
+                )}
                 {r.status === "confirmed" && !r.checkedInAt && (
                   <Button variant="ghost" disabled={busy} onClick={() => void act(() => call(`/admin/registrations/${r.id}/checkin`, { method: "POST" }))}>
                     <UserCheck size={14} /> Check in
@@ -565,10 +576,71 @@ function Registrations({ id }: { id: string }) {
                   </Button>
                 )}
               </div>
+              {open[r.id] && r.answers && data && (
+                <AnswerList answers={r.answers} form={data.form} removed={data.removedQuestions} />
+              )}
             </Card>
           ))}
         </div>
       )}
     </>
+  );
+}
+
+// ---------------------------------------------------------------- Form
+
+function FormTab({ id }: { id: string }) {
+  const { call } = useAuth();
+  const [ev, setEv] = useState<AdminEvent | null>(null);
+  const [error, setError] = useState("");
+  const load = useCallback(async () => {
+    try {
+      setEv(await call<AdminEvent>(`/admin/events/${id}`));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }, [call, id]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  if (!ev) return error ? <Empty text={`This event couldn't be loaded: ${error}`} /> : null;
+  return <FormBuilder key={ev.id} event={ev} onSaved={() => void load()} />;
+}
+
+function AnswerList({
+  answers,
+  form,
+  removed,
+}: {
+  answers: Answers;
+  form: Question[];
+  removed: { id: string; title: string }[];
+}) {
+  const rows = [
+    ...form.map((q) => ({ id: q.id, title: q.title, link: q.type === "link" })),
+    ...removed.map((q) => ({ id: q.id, title: `${q.title} (removed)`, link: false })),
+  ].filter((q) => answers[q.id] !== undefined);
+  if (rows.length === 0) return <p className="basis-full text-xs text-slate-500">No answers.</p>;
+  return (
+    <dl className="basis-full grid sm:grid-cols-[minmax(0,14rem)_1fr] gap-x-4 gap-y-2 pt-3 border-t border-slate-100 text-sm">
+      {rows.map((q) => {
+        const v = answers[q.id];
+        const text = Array.isArray(v) ? v.join(", ") : v;
+        return (
+          <div key={q.id} className="contents">
+            <dt className="text-[10px] font-black uppercase tracking-widest text-slate-500 sm:pt-0.5">{q.title}</dt>
+            <dd className="text-slate-800 break-words">
+              {q.link && /^https?:\/\//i.test(text) ? (
+                <a href={text} target="_blank" rel="noopener noreferrer" className="text-blue-900 underline break-all">
+                  {text}
+                </a>
+              ) : (
+                text
+              )}
+            </dd>
+          </div>
+        );
+      })}
+    </dl>
   );
 }
