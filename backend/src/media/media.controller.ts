@@ -48,7 +48,7 @@ export class PublicMediaController {
       'Cache-Control':
         p.cache === 'public'
           ? 'public, max-age=3600, s-maxage=3600'
-          : 'private, no-store',
+          : 'private, max-age=3600',
     });
     return new StreamableFile(p.data);
   }
@@ -63,6 +63,11 @@ export class AdminMediaController {
   @Get('albums')
   albums() {
     return this.media.adminAlbums();
+  }
+
+  @Get('albums/:id')
+  album(@Param('id', ParseUUIDPipe) id: string) {
+    return this.media.adminAlbum(id);
   }
 
   @Get('usage')

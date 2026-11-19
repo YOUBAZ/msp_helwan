@@ -48,11 +48,15 @@ export default function AlbumEditorPage() {
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    const [all, u] = await Promise.all([
-      call<MediaAlbum[]>("/admin/media/albums"),
+    // Only this album: photo URLs stay the same between reloads, so the
+    // browser keeps the thumbnails instead of downloading them again.
+    const [a, u] = await Promise.all([
+      call<MediaAlbum>(`/admin/media/albums/${id}`).catch((e: Error) => {
+        if (e.message === "Album not found.") return null;
+        throw e;
+      }),
       call<Usage>("/admin/media/usage"),
     ]);
-    const a = all.find((x) => x.id === id) ?? null;
     setAlbum(a);
     setMissing(!a);
     setUsage(u);

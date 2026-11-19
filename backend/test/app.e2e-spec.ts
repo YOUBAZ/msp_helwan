@@ -819,7 +819,7 @@ describe('MSP Tech Club API (e2e)', () => {
       expect(tokenUrl).toMatch(/\?t=/);
       const viaToken = await http().get(`/api${tokenUrl}`).expect(200);
       expect(viaToken.headers['content-type']).toBe('image/png');
-      expect(viaToken.headers['cache-control']).toContain('no-store');
+      expect(viaToken.headers['cache-control']).toContain('private');
       await http()
         .get(`/api/media/photos/${item.id}/full?t=forged`)
         .expect(404);
@@ -972,6 +972,34 @@ describe('MSP Tech Club API (e2e)', () => {
         delete process.env.MEDIA_BUDGET_BYTES;
       }
       await uploadPhoto(album.id).expect(201);
+    });
+
+    it('keeps dashboard photo URLs stable so browsers can cache them', async () => {
+      const album = await newAlbum('Stable urls');
+      await uploadPhoto(album.id).expect(201);
+      const first = (await adminAlbum(album.id)).items[0].photo!.full;
+      await new Promise((r) => setTimeout(r, 1100));
+      const second = (await adminAlbum(album.id)).items[0].photo!.full;
+      expect(second).toBe(first);
+      const res = await http().get(`/api${first}`).expect(200);
+      expect(res.headers['cache-control']).toMatch(/^private, max-age=\d+$/);
+    });
+
+    it('returns a single album for the editor', async () => {
+      const album = await newAlbum('Single album');
+      await uploadPhoto(album.id).expect(201);
+      const one = (
+        await http()
+          .get(A(`/albums/${album.id}`))
+          .set(bearer(president))
+          .expect(200)
+      ).body as Album;
+      expect(one).toMatchObject({ id: album.id, title: 'Single album' });
+      expect(one.items).toHaveLength(1);
+      await http()
+        .get(A('/albums/00000000-0000-4000-8000-000000000000'))
+        .set(bearer(president))
+        .expect(404);
     });
 
     it('lists categories', async () => {

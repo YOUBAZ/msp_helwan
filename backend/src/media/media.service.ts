@@ -204,10 +204,18 @@ export class MediaService {
     return a;
   }
 
-  private async adminAlbum(id: string) {
-    const found = (await this.adminAlbums()).find((a) => a.id === id);
-    if (!found) throw new NotFoundException('Album not found.');
-    return found;
+  /** One album with its items, for the editor (photo URLs carry a token). */
+  async adminAlbum(id: string): Promise<MediaAlbum> {
+    const album = await this.album(id);
+    const items = await this.db
+      .select()
+      .from(mediaItems)
+      .where(eq(mediaItems.albumId, id))
+      .orderBy(asc(mediaItems.sortOrder), asc(mediaItems.createdAt));
+    return this.serializeAlbum(
+      album,
+      await Promise.all(items.map((i) => this.serializeItem(i, true))),
+    );
   }
 
   /** New albums are hidden and go to the top of the list. */
