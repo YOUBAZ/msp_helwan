@@ -80,6 +80,8 @@ export default function AlbumEditorPage() {
   }
   if (!album) return null;
 
+  // Same rule as the public page: the first photo is the cover.
+  const coverId = album.items.find((i) => i.kind === "photo")?.id;
   const post = (path: string, body: object) =>
     call(path, { method: "POST", body: JSON.stringify(body) });
 
@@ -204,7 +206,7 @@ export default function AlbumEditorPage() {
                         </span>
                       </a>
                     )}
-                    {i === 0 && (
+                    {item.id === coverId && (
                       <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-orange-600 text-white text-[9px] font-black uppercase tracking-widest">
                         Cover
                       </span>
