@@ -1,6 +1,10 @@
 /** Load an image file in the browser, with friendly errors. */
 async function decode(file: File, maxBytes: number): Promise<{ img: HTMLImageElement; done: () => void }> {
-  if (!file.type.startsWith("image/")) throw new Error("Please choose an image file.");
+  // Some systems report no type at all (e.g. HEIC on Windows): let the
+  // browser try to read it, so the user gets the accurate "couldn't be read".
+  if (file.type && !file.type.startsWith("image/")) {
+    throw new Error("Please choose an image file.");
+  }
   if (file.size > maxBytes) {
     throw new Error(`That image is too large (max ${Math.round(maxBytes / 1024 / 1024)} MB).`);
   }
