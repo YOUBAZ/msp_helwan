@@ -1,7 +1,15 @@
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4001/api";
 
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  /** HTTP status from the server, or 0 if the server couldn't be reached. */
+  constructor(
+    message: string,
+    readonly status = 0,
+  ) {
+    super(message);
+  }
+}
 
 export async function api<T = unknown>(
   path: string,
@@ -25,7 +33,7 @@ export async function api<T = unknown>(
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg = Array.isArray(body.message) ? body.message[0] : body.message;
-    throw new ApiError(msg || "Something went wrong. Please try again.");
+    throw new ApiError(msg || "Something went wrong. Please try again.", res.status);
   }
   return body as T;
 }

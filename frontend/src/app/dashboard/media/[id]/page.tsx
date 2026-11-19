@@ -26,6 +26,7 @@ import {
   inputCls,
   PageTitle,
 } from "@/components/dashboard/ui";
+import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fitJpeg } from "@/lib/image";
 import { countLabel, photoSrc } from "@/lib/media";
@@ -34,7 +35,6 @@ import type { MediaAlbum } from "@/lib/types";
 type Usage = { usedBytes: number; budgetBytes: number };
 type Failed = { file: File; reason: string };
 
-const FULL = "Media storage is full";
 const iconBtn =
   "p-1.5 rounded-lg bg-white/90 text-slate-600 hover:text-blue-900 shadow disabled:opacity-30";
 
@@ -319,7 +319,7 @@ function PhotoUploader({
         });
       } catch (e) {
         const reason = (e as Error).message;
-        if (reason.startsWith(FULL)) {
+        if (e instanceof ApiError && e.status === 413 && /storage is full/i.test(reason)) {
           // Storage is full: keep what's uploaded, don't try the rest.
           setStopped(
             `${reason} ${files.length - n} photo(s) were not uploaded.`,
