@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { sniffImage } from '../access/profile';
 import { DB, type Database } from '../db/database';
+import { moveInOrder } from '../db/reorder';
 import { mediaAlbums, mediaBlobs, mediaItems } from '../db/schema';
 import { signPhotoToken, verifyPhotoToken } from './photo-token';
 import { parseVideoLink } from './video-links';
@@ -269,18 +270,19 @@ export class MediaService {
 
   async moveAlbum(id: string, direction: 'up' | 'down') {
     await this.album(id);
-    const all = await this.db
-      .select({ id: mediaAlbums.id })
-      .from(mediaAlbums)
-      .orderBy(asc(mediaAlbums.sortOrder), desc(mediaAlbums.createdAt));
-    await reorder(
-      all.map((a) => a.id),
+    await moveInOrder(
+      this.db,
+      (tx) =>
+        tx
+          .select({ id: mediaAlbums.id, sortOrder: mediaAlbums.sortOrder })
+          .from(mediaAlbums)
+          .orderBy(asc(mediaAlbums.sortOrder), desc(mediaAlbums.createdAt)),
       id,
       direction,
-      (aid, order) =>
-        this.db
+      (tx, aid, sortOrder) =>
+        tx
           .update(mediaAlbums)
-          .set({ sortOrder: order })
+          .set({ sortOrder })
           .where(eq(mediaAlbums.id, aid)),
     );
   }
@@ -379,20 +381,18 @@ export class MediaService {
 
   async moveItem(id: string, direction: 'up' | 'down') {
     const item = await this.item(id);
-    const siblings = await this.db
-      .select({ id: mediaItems.id })
-      .from(mediaItems)
-      .where(eq(mediaItems.albumId, item.albumId))
-      .orderBy(asc(mediaItems.sortOrder), asc(mediaItems.createdAt));
-    await reorder(
-      siblings.map((s) => s.id),
+    await moveInOrder(
+      this.db,
+      (tx) =>
+        tx
+          .select({ id: mediaItems.id, sortOrder: mediaItems.sortOrder })
+          .from(mediaItems)
+          .where(eq(mediaItems.albumId, item.albumId))
+          .orderBy(asc(mediaItems.sortOrder), asc(mediaItems.createdAt)),
       id,
       direction,
-      (sid, order) =>
-        this.db
-          .update(mediaItems)
-          .set({ sortOrder: order })
-          .where(eq(mediaItems.id, sid)),
+      (tx, sid, sortOrder) =>
+        tx.update(mediaItems).set({ sortOrder }).where(eq(mediaItems.id, sid)),
     );
   }
 
@@ -409,18 +409,4 @@ function checkDate(value: string) {
     throw new BadRequestException('Please enter a valid date.');
   }
   return value;
-}
-
-/** Swap an item with its neighbour and renumber the list 0..n-1. */
-async function reorder(
-  ids: string[],
-  id: string,
-  direction: 'up' | 'down',
-  save: (id: string, order: number) => Promise<unknown>,
-) {
-  const i = ids.indexOf(id);
-  const j = direction === 'up' ? i - 1 : i + 1;
-  if (i < 0 || j < 0 || j >= ids.length) return;
-  [ids[i], ids[j]] = [ids[j], ids[i]];
-  for (const [order, sid] of ids.entries()) await save(sid, order);
 }

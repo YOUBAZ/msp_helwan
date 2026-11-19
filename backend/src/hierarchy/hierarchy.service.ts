@@ -7,6 +7,7 @@ import {
 import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { uniqueViolation } from '../access/roles.service';
 import { DB, type Database } from '../db/database';
+import { moveInOrder } from '../db/reorder';
 import {
   hierarchyMembers,
   hierarchyPositions,
@@ -383,29 +384,33 @@ export class HierarchyService {
 
   async movePosition(id: string, direction: 'up' | 'down') {
     const p = await this.position(id);
-    const siblings = await this.db
-      .select()
-      .from(hierarchyPositions)
-      .where(
-        and(
-          eq(hierarchyPositions.seasonId, p.seasonId),
-          p.parentId
-            ? eq(hierarchyPositions.parentId, p.parentId)
-            : sql`${hierarchyPositions.parentId} IS NULL`,
-        ),
-      )
-      .orderBy(
-        asc(hierarchyPositions.sortOrder),
-        asc(hierarchyPositions.createdAt),
-      );
-    await this.reorder(
-      siblings.map((s) => s.id),
+    await moveInOrder(
+      this.db,
+      (tx) =>
+        tx
+          .select({
+            id: hierarchyPositions.id,
+            sortOrder: hierarchyPositions.sortOrder,
+          })
+          .from(hierarchyPositions)
+          .where(
+            and(
+              eq(hierarchyPositions.seasonId, p.seasonId),
+              p.parentId
+                ? eq(hierarchyPositions.parentId, p.parentId)
+                : sql`${hierarchyPositions.parentId} IS NULL`,
+            ),
+          )
+          .orderBy(
+            asc(hierarchyPositions.sortOrder),
+            asc(hierarchyPositions.createdAt),
+          ),
       id,
       direction,
-      (sid, order) =>
-        this.db
+      (tx, sid, sortOrder) =>
+        tx
           .update(hierarchyPositions)
-          .set({ sortOrder: order })
+          .set({ sortOrder })
           .where(eq(hierarchyPositions.id, sid)),
     );
   }
@@ -461,37 +466,27 @@ export class HierarchyService {
 
   async moveMember(id: string, direction: 'up' | 'down') {
     const m = await this.member(id);
-    const siblings = await this.db
-      .select()
-      .from(hierarchyMembers)
-      .where(eq(hierarchyMembers.positionId, m.positionId))
-      .orderBy(
-        asc(hierarchyMembers.sortOrder),
-        asc(hierarchyMembers.createdAt),
-      );
-    await this.reorder(
-      siblings.map((s) => s.id),
+    await moveInOrder(
+      this.db,
+      (tx) =>
+        tx
+          .select({
+            id: hierarchyMembers.id,
+            sortOrder: hierarchyMembers.sortOrder,
+          })
+          .from(hierarchyMembers)
+          .where(eq(hierarchyMembers.positionId, m.positionId))
+          .orderBy(
+            asc(hierarchyMembers.sortOrder),
+            asc(hierarchyMembers.createdAt),
+          ),
       id,
       direction,
-      (sid, order) =>
-        this.db
+      (tx, sid, sortOrder) =>
+        tx
           .update(hierarchyMembers)
-          .set({ sortOrder: order })
+          .set({ sortOrder })
           .where(eq(hierarchyMembers.id, sid)),
     );
-  }
-
-  /** Swap an item with its neighbour and renumber the list 0..n-1. */
-  private async reorder(
-    ids: string[],
-    id: string,
-    direction: 'up' | 'down',
-    save: (id: string, order: number) => Promise<unknown>,
-  ) {
-    const i = ids.indexOf(id);
-    const j = direction === 'up' ? i - 1 : i + 1;
-    if (i < 0 || j < 0 || j >= ids.length) return;
-    [ids[i], ids[j]] = [ids[j], ids[i]];
-    for (const [order, sid] of ids.entries()) await save(sid, order);
   }
 }

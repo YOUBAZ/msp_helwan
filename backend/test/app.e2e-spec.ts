@@ -1031,6 +1031,25 @@ describe('MSP Tech Club API (e2e)', () => {
       }
     });
 
+    it('applies simultaneous moves one after the other', async () => {
+      const album = await newAlbum('Move race album');
+      const ids: string[] = [];
+      for (let k = 0; k < 4; k++) {
+        ids.push(((await uploadPhoto(album.id).expect(201)).body as Item).id);
+      }
+      const last = ids[3];
+      const moveUp = () =>
+        http()
+          .post(A(`/items/${last}/move`))
+          .set(bearer(president))
+          .send({ direction: 'up' })
+          .expect(204);
+      await Promise.all([moveUp(), moveUp()]);
+      const order = (await adminAlbum(album.id)).items.map((i) => i.id);
+      expect(order.indexOf(last)).toBe(1);
+      expect([...order].sort()).toEqual([...ids].sort());
+    });
+
     it('lists categories', async () => {
       const cats = (
         await http().get(A('/categories')).set(bearer(president)).expect(200)
