@@ -47,7 +47,7 @@ Add new permissions in `backend/src/access/permissions.ts` and protect routes wi
 - Contact info & social links: `frontend/src/data/site.ts` (the WhatsApp number is still the original site's placeholder)
 - Committees: `frontend/src/data/committees.ts`
 - Board members: `frontend/src/data/team.ts` (photos in `frontend/public/images/team/`)
-- Events & gallery albums: `frontend/src/data/events.ts` (photos in `frontend/public/images/events/`)
+- Events page texts: `frontend/src/data/events.ts`. Media albums, photos and videos: **Dashboard → Media**
 
 ## Database
 
@@ -98,15 +98,7 @@ Redeploy the website after changing `NEXT_PUBLIC_API_URL` (it is baked in at bui
 
 Albums, photos and videos are managed in **Dashboard → Media** by roles with the "Manage the Media page" permission. Photos are stored in the database (budget `MEDIA_BUDGET_BYTES`, default 400 MB); videos are YouTube / Facebook / Google Drive links.
 
-**One-time step after the first deploy of the Media feature:** copy the original 37 photos (still served from `frontend/public/images/events`) into the database:
-
-```bash
-cd backend
-DATABASE_URL="<your Neon connection string>" npm run media:import-legacy
-# -> Imported 37 photos (8.7 MB).   Running it again prints "Nothing to import".
-```
-
-After that, `frontend/public/images/events/` can be deleted so the old direct file addresses stop working.
+The original 37 photos were imported into the database once (November 2026) and their files removed from the website.
 
 ## Tests
 

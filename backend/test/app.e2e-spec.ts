@@ -734,29 +734,23 @@ describe('MSP Tech Club API (e2e)', () => {
     const publicAlbums = async () =>
       (await http().get('/api/media/albums').expect(200)).body as Album[];
 
-    it('ships the 4 existing albums', async () => {
-      const albums = await publicAlbums();
-      expect(albums.map((a) => a.title)).toEqual([
+    it('keeps the 4 original albums but no photos pointing at deleted files', async () => {
+      // The original photos were imported into production and their files
+      // deleted; a fresh database keeps the albums (empty, so not public).
+      const admin = (
+        await http()
+          .get('/api/admin/media/albums')
+          .set(bearer(president))
+          .expect(200)
+      ).body as Album[];
+      expect(admin.map((a) => a.title)).toEqual([
         'Orientation Day 2025',
         'AI Catalyst 2025',
         'Problem Solving Competition 2025',
         'Best Heads & Members 2025',
       ]);
-      expect(albums.map((a) => a.category)).toEqual([
-        'Event',
-        'Workshop',
-        'Contest',
-        'Awards',
-      ]);
-      expect(albums.map((a) => a.items.length)).toEqual([12, 8, 5, 12]);
-      expect(albums[0].items[0].photo).toEqual({
-        full: '/images/events/orientation/1.jpg',
-        small: '/images/events/orientation/1.jpg',
-        origin: 'site',
-      });
-      expect(albums[0].items[11].photo?.full).toBe(
-        '/images/events/orientation/12.jpg',
-      );
+      expect(admin.every((a) => a.items.length === 0)).toBe(true);
+      expect(await publicAlbums()).toEqual([]);
     });
 
     const PNG = Buffer.from(

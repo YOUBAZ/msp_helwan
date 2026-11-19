@@ -234,4 +234,10 @@ INSERT INTO media_items (album_id, kind, sort_order, legacy_path) VALUES
   ('00000000-0000-4000-8a00-000000000003', 'photo', 11, '/images/events/best/12.jpg');
 `,
   },
+  {
+    id: '005_media_legacy_cleanup',
+    sql: `
+DELETE FROM media_items WHERE legacy_path IS NOT NULL;
+`,
+  },
 ];
