@@ -5,6 +5,8 @@ import type { JwtService } from '@nestjs/jwt';
  * plain <img> tags (which can't send a login header).
  */
 const HOUR = 3600;
+/** Marks a token as a photo pass, so no other kind of token is accepted. */
+const AUDIENCE = 'media-photo';
 
 /**
  * The token is identical for the same photo within an hour-long window (no
@@ -17,7 +19,7 @@ export function signPhotoToken(jwt: JwtService, itemId: string) {
   // exp = now + (windowEnd - now) = windowEnd: the same for the whole window.
   return jwt.signAsync(
     { media: itemId },
-    { noTimestamp: true, expiresIn: windowEnd - now },
+    { noTimestamp: true, expiresIn: windowEnd - now, audience: AUDIENCE },
   );
 }
 
@@ -28,7 +30,9 @@ export async function verifyPhotoToken(
 ): Promise<boolean> {
   if (!token) return false;
   try {
-    const payload = await jwt.verifyAsync<{ media?: string }>(token);
+    const payload = await jwt.verifyAsync<{ media?: string }>(token, {
+      audience: AUDIENCE,
+    });
     return payload.media === itemId;
   } catch {
     return false;

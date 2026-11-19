@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { JwtService } from '@nestjs/jwt';
 import { hashSync } from 'bcryptjs';
 import request from 'supertest';
 import type { App } from 'supertest/types';
@@ -827,6 +828,22 @@ describe('MSP Tech Club API (e2e)', () => {
         .expect(200);
       expect(pub.headers['cache-control']).toContain('max-age=3600');
       expect(Buffer.compare(pub.body as Buffer, PNG)).toBe(0);
+    });
+
+    it('only accepts tokens made for photos', async () => {
+      const album = await newAlbum('Audience album');
+      const item = (await uploadPhoto(album.id).expect(201)).body as Item;
+      // Same secret, right item, but not marked as a photo token.
+      const generic = await new JwtService({ secret: 'test-secret' }).signAsync(
+        {
+          media: item.id,
+        },
+      );
+      await http()
+        .get(`/api/media/photos/${item.id}/full?t=${generic}`)
+        .expect(404);
+      const real = (await adminAlbum(album.id)).items[0].photo!.full;
+      await http().get(`/api${real}`).expect(200);
     });
 
     it('rejects non-images and oversized files', async () => {
