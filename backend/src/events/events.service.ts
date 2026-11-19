@@ -143,6 +143,50 @@ export class EventsService {
     return toAdmin(e, NO_COUNTS, new Date());
   }
 
+  /**
+   * Copy an event as a new draft: details, capacity and the registration form
+   * (plus the cover if media storage has room). People, check-ins,
+   * attendance, the album link and the deadline are not copied.
+   */
+  async duplicate(id: string) {
+    const src = await this.row(id);
+    const copyId = await this.db.transaction(async (tx) => {
+      const [copy] = await tx
+        .insert(events)
+        .values({
+          title: `${src.title} (copy)`.slice(0, 120),
+          category: src.category,
+          description: src.description,
+          venue: src.venue,
+          startsAt: src.startsAt,
+          endsAt: src.endsAt,
+          capacity: src.capacity,
+          partners: src.partners,
+          form: src.form,
+          published: false,
+          registrationOpen: true,
+        })
+        .returning({ id: events.id });
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${UPLOAD_LOCK})`);
+      const [cover] = await tx
+        .select()
+        .from(eventCovers)
+        .where(eq(eventCovers.eventId, id));
+      if (
+        cover &&
+        (await usedMediaBytes(tx)) + cover.bytes <= this.media.budget()
+      ) {
+        await tx.insert(eventCovers).values({ ...cover, eventId: copy.id });
+        await tx
+          .update(events)
+          .set({ coverVersion: 1 })
+          .where(eq(events.id, copy.id));
+      }
+      return copy.id;
+    });
+    return this.adminEvent(copyId);
+  }
+
   /** Apply edits (business rules about registrants are enforced by callers). */
   async applyUpdate(id: string, dto: UpdateEventDto) {
     const e = await this.row(id);

@@ -1960,6 +1960,71 @@ describe('MSP Tech Club API (e2e)', () => {
       await saveForm(ev.id, 'nope').expect(400);
     });
 
+    it('duplicates an event with its form as a draft, without people', async () => {
+      const ev = await openEvent({
+        capacity: 40,
+        description: 'Build things.',
+        partners: ['Microsoft'],
+      });
+      await http()
+        .post(E(`/${ev.id}/cover`))
+        .set(bearer(president))
+        .attach('file', PNG_1PX, 'c.png')
+        .expect(201);
+      const form = [
+        PHONE,
+        {
+          id: 'track',
+          type: 'choice',
+          title: 'Which track?',
+          required: true,
+          options: ['AI', 'Web'],
+          other: true,
+        },
+      ];
+      await saveForm(ev.id, form).expect(200);
+      await register(
+        ev.id,
+        'dup1@test.dev',
+        answersFor({ track: 'AI' }),
+      ).expect(201);
+      await http()
+        .post(E(`/${ev.id}/duplicate`))
+        .set(bearer(volunteer))
+        .expect(403);
+      const copy = (
+        await http()
+          .post(E(`/${ev.id}/duplicate`))
+          .set(bearer(president))
+          .expect(201)
+      ).body as Ev & {
+        published: boolean;
+        form: { id: string; options?: string[] }[];
+        registrationDeadline: string | null;
+      };
+      expect(copy.id).not.toBe(ev.id);
+      expect(copy).toMatchObject({
+        title: 'Open Event (copy)',
+        published: false,
+        capacity: 40,
+        description: 'Build things.',
+        partners: ['Microsoft'],
+        confirmed: 0,
+        cancelled: false,
+        registrationDeadline: null,
+      });
+      expect(copy.form).toEqual(form);
+      expect(copy.coverUrl).toMatch(new RegExp(`^/events/${copy.id}/cover`));
+      await http().get(`/api${copy.coverUrl}`).expect(200);
+      const people = (
+        await http()
+          .get(E(`/${copy.id}/registrations`))
+          .set(bearer(president))
+          .expect(200)
+      ).body as { registrations: unknown[] };
+      expect(people.registrations).toEqual([]);
+    });
+
     it('adds the two event permissions', async () => {
       const perms = (
         await http().get('/api/permissions').set(bearer(president)).expect(200)

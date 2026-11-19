@@ -100,6 +100,11 @@ export class AdminEventsController {
     private readonly registrations: RegistrationsService,
   ) {}
 
+  @Post(':id/duplicate')
+  duplicate(@Param('id', ParseUUIDPipe) id: string) {
+    return this.events.duplicate(id);
+  }
+
   @Put(':id/form')
   async saveForm(
     @Param('id', ParseUUIDPipe) id: string,

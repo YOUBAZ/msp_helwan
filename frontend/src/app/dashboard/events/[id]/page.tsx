@@ -9,6 +9,7 @@ import {
   Ban,
   Camera,
   Copy,
+  CopyPlus,
   Download,
   Eye,
   EyeOff,
@@ -239,6 +240,23 @@ function Details({ id }: { id: string }) {
                 <Ban size={14} /> Cancel event
               </Button>
             )}
+            <Button
+              variant="ghost"
+              disabled={busy}
+              title="Copy the details and registration form into a new draft (no registrations)"
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  const copy = await call<AdminEvent>(`/admin/events/${id}/duplicate`, { method: "POST" });
+                  router.push(`/dashboard/events/${copy.id}`);
+                } catch (e) {
+                  setMsg({ ok: "", err: (e as Error).message });
+                  setBusy(false);
+                }
+              }}
+            >
+              <CopyPlus size={14} /> Duplicate
+            </Button>
             {registered === 0 && ev.confirmed + ev.waitlisted === 0 && (
               <Button
                 variant="danger"
