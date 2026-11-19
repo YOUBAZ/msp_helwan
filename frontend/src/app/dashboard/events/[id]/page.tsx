@@ -489,7 +489,7 @@ function Registrations({ id }: { id: string }) {
         <input
           type="search"
           aria-label="Search registrations"
-          placeholder="Search name, email or phone"
+          placeholder="Search name, email or answers"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           className={`${inputCls} py-3 sm:max-w-xs`}

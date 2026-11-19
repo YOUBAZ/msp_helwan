@@ -90,11 +90,15 @@ export default function RegistrationBox({ initial }: { initial: PublicEvent }) {
       </div>
       <div className="grid sm:grid-cols-2 gap-4">
         <label className="space-y-1.5 sm:col-span-2">
-          <span className={labelCls}>Full name</span>
+          <span className={labelCls}>
+            Full name<span className="text-orange-600"> *</span>
+          </span>
           <input required minLength={2} maxLength={100} autoComplete="name" value={form.name} onChange={set("name")} className={inputCls} />
         </label>
         <label className="space-y-1.5 sm:col-span-2">
-          <span className={labelCls}>Email</span>
+          <span className={labelCls}>
+            Email<span className="text-orange-600"> *</span>
+          </span>
           <input required type="email" autoComplete="email" value={form.email} onChange={set("email")} className={inputCls} />
         </label>
         <FormFields form={event.form} answers={answers} onChange={setAnswers} idPrefix="reg" />
