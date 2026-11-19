@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
+  BadgePlus,
   Ban,
   Camera,
   Copy,
@@ -28,6 +29,8 @@ import {
   Field,
   inputCls,
   labelCls,
+  LinkBox,
+  Modal,
   PageTitle,
 } from "@/components/dashboard/ui";
 import { API_URL } from "@/lib/api";
@@ -35,7 +38,8 @@ import { useAuth } from "@/lib/auth";
 import { coverSrc, formatCairo, fromCairoInput, toCairoInput } from "@/lib/events";
 import { photoVersions } from "@/lib/image";
 import FormBuilder from "@/components/dashboard/FormBuilder";
-import type { AdminEvent, Answers, MediaAlbum, Question } from "@/lib/types";
+import InviteDialog from "@/components/dashboard/InviteDialog";
+import type { AdminEvent, Answers, Invite, MediaAlbum, Question, Role } from "@/lib/types";
 
 type Reg = {
   id: string;
@@ -421,6 +425,12 @@ function Registrations({ id }: { id: string }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState("");
+  // Recruitment: invite attendees to an MSP account with a role.
+  const canInvite = can("members.invite");
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [invited, setInvited] = useState<Record<string, string>>({});
+  const [inviting, setInviting] = useState<Reg | null>(null);
+  const [inviteLink, setInviteLink] = useState<{ link: string; email: string; emailSent: boolean } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -429,9 +439,18 @@ function Registrations({ id }: { id: string }) {
       setError((e as Error).message);
     }
   }, [call, id]);
+  const loadInvites = useCallback(async () => {
+    if (!canInvite) return;
+    try {
+      const [rs, inv] = await Promise.all([call<Role[]>("/roles"), call<Invite[]>("/invites")]);
+      setRoles(rs);
+      setInvited(Object.fromEntries(inv.map((i) => [i.email, i.roles.map((r) => r.name).join(", ") || "no role"])));
+    } catch {}
+  }, [call, canInvite]);
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadInvites();
+  }, [load, loadInvites]);
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -576,6 +595,15 @@ function Registrations({ id }: { id: string }) {
                     <Copy size={14} /> {copied === r.id ? "Copied" : "Ticket link"}
                   </Button>
                 )}
+                {canInvite && r.status !== "cancelled" && (
+                  <Button
+                    variant="ghost"
+                    title={invited[r.email] ? `Invitation pending (${invited[r.email]}). Click to send a new one.` : "Invite to an MSP account with a role"}
+                    onClick={() => setInviting(r)}
+                  >
+                    <BadgePlus size={14} /> {invited[r.email] ? `Invited: ${invited[r.email]}` : "Invite to MSP"}
+                  </Button>
+                )}
                 {manage && r.status === "waitlisted" && (
                   <Button variant="ghost" disabled={busy} onClick={() => void act(() => call(`/admin/registrations/${r.id}/promote`, { method: "POST" }))}>
                     <UserPlus size={14} /> Move in
@@ -600,6 +628,36 @@ function Registrations({ id }: { id: string }) {
             </Card>
           ))}
         </div>
+      )}
+      {inviting && (
+        <InviteDialog
+          title={`Invite ${inviting.name} to MSP`}
+          roles={roles}
+          initial={{ name: inviting.name, email: inviting.email }}
+          onClose={() => setInviting(null)}
+          onCreated={(link, email, emailSent) => {
+            setInviting(null);
+            setInviteLink({ link, email, emailSent });
+            void loadInvites();
+          }}
+        />
+      )}
+      {inviteLink && (
+        <Modal title="Invitation created" onClose={() => setInviteLink(null)}>
+          {inviteLink.emailSent && (
+            <p className="mb-5 p-4 rounded-2xl bg-green-50 border border-green-200 text-green-800 text-sm font-bold">
+              ✓ Emailed to {inviteLink.email}
+            </p>
+          )}
+          <LinkBox
+            link={inviteLink.link}
+            note={
+              inviteLink.emailSent
+                ? "Backup: if the email doesn't arrive (check spam), copy this link and send it on WhatsApp. It works once and expires in 7 days."
+                : `Send this link to ${inviteLink.email} (WhatsApp or email). They open it, choose a password, and their account is ready. It works once and expires in 7 days.`
+            }
+          />
+        </Modal>
       )}
     </>
   );

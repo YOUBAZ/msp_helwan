@@ -1,8 +1,9 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Eye, KeyRound, Pencil, UserPlus, X } from "lucide-react";
 import Avatar from "@/components/dashboard/Avatar";
+import InviteDialog from "@/components/dashboard/InviteDialog";
 import RolePicker from "@/components/dashboard/RolePicker";
 import {
   Badge,
@@ -10,10 +11,8 @@ import {
   Card,
   Empty,
   ErrorText,
-  Field,
   fmtDate,
   inputCls,
-  labelCls,
   LinkBox,
   Modal,
   PageTitle,
@@ -314,88 +313,6 @@ export default function MembersPage() {
         </Modal>
       )}
     </>
-  );
-}
-
-function InviteDialog({
-  roles,
-  onClose,
-  onCreated,
-}: {
-  roles: Role[];
-  onClose: () => void;
-  onCreated: (link: string, email: string, emailSent: boolean) => void;
-}) {
-  const { call } = useAuth();
-  const member = roles.find((r) => r.name === "Member");
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    roleIds: member ? [member.id] : [],
-  });
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const res = await call<{ link: string; emailSent: boolean }>("/invites", {
-        method: "POST",
-        body: JSON.stringify(form),
-      });
-      onCreated(res.link, form.email, res.emailSent);
-    } catch (err) {
-      setError((err as Error).message);
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Modal title="Invite a member" onClose={onClose}>
-      <form onSubmit={submit} className="space-y-5">
-        <div className="grid sm:grid-cols-2 gap-4">
-          <Field label="Full name" id="i-name">
-            <input
-              id="i-name"
-              required
-              minLength={2}
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className={inputCls}
-            />
-          </Field>
-          <Field label="Email" id="i-email">
-            <input
-              id="i-email"
-              type="email"
-              required
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className={inputCls}
-            />
-          </Field>
-        </div>
-        <div className="space-y-2">
-          <p className={labelCls}>Roles</p>
-          <RolePicker
-            roles={roles}
-            value={form.roleIds}
-            onChange={(roleIds) => setForm({ ...form, roleIds })}
-          />
-        </div>
-        <ErrorText error={error} />
-        <div className="flex justify-end gap-3">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" variant="accent" disabled={busy}>
-            {busy ? "Creating…" : "Create invitation"}
-          </Button>
-        </div>
-      </form>
-    </Modal>
   );
 }
 
