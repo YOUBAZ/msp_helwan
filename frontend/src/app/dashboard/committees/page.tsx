@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, CircleCheck, CopyPlus, Pencil, Plus, Trash2 } from "lucide-react";
 import CommitteeDialog from "@/components/dashboard/CommitteeDialog";
 import { Badge, Button, Card, Empty, ErrorText, inputCls, labelCls, Modal, PageTitle } from "@/components/dashboard/ui";
@@ -48,12 +48,17 @@ export default function CommitteesAdminPage() {
     );
   }, [call, allowed]);
 
+  // Only the latest request may update the page (switching seasons quickly
+  // must not let a slow, older answer replace the newer one).
+  const latest = useRef(0);
   const load = useCallback(async () => {
     if (!seasonId) return;
+    const ticket = ++latest.current;
     try {
-      setData(await call<SeasonData>(`/admin/seasons/${seasonId}/committees`));
+      const d = await call<SeasonData>(`/admin/seasons/${seasonId}/committees`);
+      if (ticket === latest.current) setData(d);
     } catch (e) {
-      setError((e as Error).message);
+      if (ticket === latest.current) setError((e as Error).message);
     }
   }, [call, seasonId]);
   useEffect(() => {
@@ -182,8 +187,8 @@ export default function CommitteesAdminPage() {
                         {c.description && <p className="text-sm text-slate-600 mt-1">{c.description}</p>}
                         {c.tasks.length > 0 && (
                           <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-                            {c.tasks.map((task) => (
-                              <li key={task} className="flex items-center gap-1.5 text-xs text-slate-500">
+                            {c.tasks.map((task, k) => (
+                              <li key={`${k}-${task}`} className="flex items-center gap-1.5 text-xs text-slate-500">
                                 <CircleCheck size={12} className="text-orange-600" /> {task}
                               </li>
                             ))}

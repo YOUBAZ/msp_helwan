@@ -2067,6 +2067,7 @@ describe('MSP Tech Club API (e2e)', () => {
       icon: string;
       description: string;
       tasks: string[];
+      sortOrder: number;
     };
     type View = {
       seasons: { number: number; name: string }[];
@@ -2312,6 +2313,84 @@ describe('MSP Tech Club API (e2e)', () => {
         .delete(A(`/committees/${first.id}`))
         .set(bearer(president))
         .expect(400);
+    });
+
+    it('keeps a committee as it is when nothing is sent to change', async () => {
+      const s29 = await seasonOf(29);
+      const game = (await listOf(s29.id)).committees.find(
+        (c) => c.name === 'Game Development',
+      )!;
+      const r = await http()
+        .patch(A(`/committees/${game.id}`))
+        .set(bearer(president))
+        .send({})
+        .expect(200);
+      expect(r.body).toMatchObject({
+        name: 'Game Development',
+        icon: 'gamepad',
+      });
+    });
+
+    it('refuses the same task twice in one committee', async () => {
+      const s29 = await seasonOf(29);
+      const r = await http()
+        .post(A(`/seasons/${s29.id}/committees`))
+        .set(bearer(president))
+        .send({ ...GAME, name: 'Twice', tasks: ['Unity', 'unity '] })
+        .expect(400);
+      expect(JSON.stringify(r.body)).toMatch(/same task/i);
+    });
+
+    it('moves a committee to the end of its new type', async () => {
+      const s29 = await seasonOf(29);
+      const before = (await listOf(s29.id)).committees;
+      const game = before.find((c) => c.name === 'Game Development')!;
+      await http()
+        .patch(A(`/committees/${game.id}`))
+        .set(bearer(president))
+        .send({ track: 'non_technical' })
+        .expect(200);
+      const after = (await listOf(s29.id)).committees.filter(
+        (c) => c.track === 'non_technical',
+      );
+      expect(after[after.length - 1].name).toBe('Game Development');
+    });
+
+    it('refuses adding, copying and moving in archived seasons', async () => {
+      const s26 = await seasonOf(26);
+      const first = (await listOf(s26.id)).committees[1];
+      await http()
+        .post(A(`/seasons/${s26.id}/committees`))
+        .set(bearer(president))
+        .send({ ...GAME, name: 'Late Addition' })
+        .expect(400);
+      await http()
+        .post(A(`/committees/${first.id}/move`))
+        .set(bearer(president))
+        .send({ direction: 'up' })
+        .expect(400);
+    });
+
+    it('gives committees added at the same moment their own places', async () => {
+      const s29 = await seasonOf(29);
+      const s26 = await seasonOf(26);
+      const from = (await listOf(s26.id)).committees.filter(
+        (c) => c.track === 'technical',
+      );
+      await Promise.all(
+        from.slice(1, 5).map((c) =>
+          http()
+            .post(A(`/seasons/${s29.id}/committees/copy`))
+            .set(bearer(president))
+            .send({ committeeId: c.id })
+            .expect(201),
+        ),
+      );
+      const tech = (await listOf(s29.id)).committees.filter(
+        (c) => c.track === 'technical',
+      );
+      const orders = tech.map((c) => c.sortOrder);
+      expect(new Set(orders).size).toBe(orders.length);
     });
 
     it('adds the committees permission', async () => {

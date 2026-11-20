@@ -24,8 +24,8 @@ function CommitteeCard({ item }: { item: Committee }) {
       )}
       {item.tasks.length > 0 && (
       <div className="space-y-3 border-t border-white/5 pt-6 mt-auto">
-        {item.tasks.map((task) => (
-          <div key={task} className="flex items-start gap-3 text-sm font-medium text-slate-300">
+        {item.tasks.map((task, i) => (
+          <div key={`${i}-${task}`} className="flex items-start gap-3 text-sm font-medium text-slate-300">
             <CircleCheck size={16} className="text-orange-600 shrink-0 mt-0.5" />
             <span>{task}</span>
           </div>

@@ -1,6 +1,7 @@
 import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayUnique,
   IsArray,
   IsIn,
   IsOptional,
@@ -38,6 +39,9 @@ export class CommitteeDto {
   @Transform(trimList)
   @IsArray()
   @ArrayMaxSize(12, { message: 'A committee can list up to 12 tasks.' })
+  @ArrayUnique((t: unknown) => (typeof t === 'string' ? t.toLowerCase() : t), {
+    message: 'The same task is listed twice.',
+  })
   @IsString({ each: true })
   @Length(1, 80, { each: true, message: 'Each task must be 1–80 characters.' })
   tasks!: string[];
@@ -69,6 +73,9 @@ export class UpdateCommitteeDto {
   @Transform(trimList)
   @IsArray()
   @ArrayMaxSize(12, { message: 'A committee can list up to 12 tasks.' })
+  @ArrayUnique((t: unknown) => (typeof t === 'string' ? t.toLowerCase() : t), {
+    message: 'The same task is listed twice.',
+  })
   @IsString({ each: true })
   @Length(1, 80, { each: true, message: 'Each task must be 1–80 characters.' })
   tasks?: string[];

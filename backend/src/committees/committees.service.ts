@@ -37,7 +37,11 @@ export const toCommittee = (c: CommitteeRow): Committee => ({
 /** Technical first, then by the board's order. */
 const TRACK_ORDER: Record<Track, number> = { technical: 0, non_technical: 1 };
 export const byTrackThenOrder = (a: CommitteeRow, b: CommitteeRow) =>
-  TRACK_ORDER[a.track] - TRACK_ORDER[b.track] || a.sortOrder - b.sortOrder;
+  TRACK_ORDER[a.track] - TRACK_ORDER[b.track] ||
+  a.sortOrder - b.sortOrder ||
+  // Ties (shouldn't happen) still give a stable order.
+  a.createdAt.getTime() - b.createdAt.getTime() ||
+  a.id.localeCompare(b.id);
 
 @Injectable()
 export class CommitteesService {
@@ -155,17 +159,24 @@ export class CommitteesService {
   async update(id: string, dto: UpdateCommitteeDto): Promise<Committee> {
     const c = await this.row(id);
     const season = await this.editableSeason(c.seasonId);
-    const sortOrder =
-      dto.track && dto.track !== c.track
-        ? (await this.lastOrder(this.db, season.id, dto.track)) + 1
-        : undefined;
+    const changes = Object.fromEntries(
+      Object.entries(dto).filter(([, v]) => v !== undefined),
+    ) as UpdateCommitteeDto;
+    if (Object.keys(changes).length === 0) return toCommittee(c);
     try {
-      const [updated] = await this.db
-        .update(committees)
-        .set({ ...dto, sortOrder })
-        .where(eq(committees.id, id))
-        .returning();
-      return toCommittee(updated);
+      return await this.db.transaction(async (tx) => {
+        let sortOrder: number | undefined;
+        if (changes.track && changes.track !== c.track) {
+          await this.lockSeason(tx, season.id);
+          sortOrder = (await this.lastOrder(tx, season.id, changes.track)) + 1;
+        }
+        const [updated] = await tx
+          .update(committees)
+          .set({ ...changes, sortOrder })
+          .where(eq(committees.id, id))
+          .returning();
+        return toCommittee(updated);
+      });
     } catch (err) {
       throw uniqueViolation(err, duplicateName(season.name));
     }
@@ -217,6 +228,8 @@ export class CommitteesService {
   ): Promise<Committee> {
     try {
       return await this.db.transaction(async (tx) => {
+        // One add at a time per season, so each gets its own place.
+        await this.lockSeason(tx, season.id);
         const [created] = await tx
           .insert(committees)
           .values({
@@ -244,6 +257,14 @@ export class CommitteesService {
         and(eq(committees.seasonId, seasonId), eq(committees.track, track)),
       );
     return rows.reduce((m, r) => Math.max(m, r.o), -1);
+  }
+
+  private async lockSeason(tx: Tx, seasonId: string) {
+    await tx
+      .select({ id: seasons.id })
+      .from(seasons)
+      .where(eq(seasons.id, seasonId))
+      .for('update');
   }
 
   private async row(id: string) {
