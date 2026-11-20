@@ -6,6 +6,7 @@ import {
   CalendarDays,
   LayoutDashboard,
   Images,
+  Layers,
   LogOut,
   Mail,
   MessageSquare,
@@ -32,6 +33,7 @@ const NAV: NavItem[] = [
   { href: "/dashboard/members", label: "Members", Icon: Users, perm: "members.view" },
   { href: "/dashboard/roles", label: "Roles", Icon: ShieldCheck },
   { href: "/dashboard/hierarchy", label: "Team Hierarchy", Icon: Network, perm: "seasons.manage" },
+  { href: "/dashboard/committees", label: "Committees", Icon: Layers, perm: "committees.manage" },
   {
     href: "/dashboard/events",
     label: "Events",

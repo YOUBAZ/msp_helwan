@@ -11,6 +11,7 @@ const SHORTCUTS = [
   { href: "/dashboard/members", label: "View members", perm: "members.view" },
   { href: "/dashboard/roles", label: "Create and edit roles", perm: "roles.manage" },
   { href: "/dashboard/hierarchy", label: "Build the season's team hierarchy", perm: "seasons.manage" },
+  { href: "/dashboard/committees", label: "Manage each season's committees", perm: "committees.manage" },
   { href: "/dashboard/events", label: "Manage events and registrations", perm: "events.manage" },
   { href: "/dashboard/events", label: "Check people in at events", perm: "events.checkin" },
   { href: "/dashboard/media", label: "Manage Media albums", perm: "media.manage" },
