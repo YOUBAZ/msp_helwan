@@ -176,3 +176,23 @@ export type Ticket = {
   checkedInAt: string | null;
   event: PublicEvent;
 };
+
+export type CommitteeTrack = "technical" | "non_technical";
+
+export type Committee = {
+  id: string;
+  name: string;
+  track: CommitteeTrack;
+  icon: string;
+  description: string;
+  tasks: string[];
+  sortOrder: number;
+};
+
+export type CommitteesView = {
+  seasons: { number: number; name: string }[];
+  season: { number: number; name: string } | null;
+  committees: Committee[];
+  /** True when the current season has none yet, so the previous season is shown. */
+  fallback: boolean;
+};
