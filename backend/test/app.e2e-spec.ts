@@ -2111,6 +2111,209 @@ describe('MSP Tech Club API (e2e)', () => {
       await http().get('/api/committees?season=28').expect(404);
     });
 
+    const A = (path: string) => `/api/admin${path}`;
+    type AdminSeason = { id: string; number: number; status: string };
+    type SeasonCommittees = {
+      season: AdminSeason;
+      committees: Committee[];
+      previous: { id: string; number: number } | null;
+      previousCommittees: Committee[];
+    };
+    const seasonsList = async (t = president) =>
+      (await http().get(A('/committees/seasons')).set(bearer(t)).expect(200))
+        .body as AdminSeason[];
+    const seasonOf = async (n: number) =>
+      (await seasonsList()).find((s) => s.number === n)!;
+    const listOf = async (id: string) =>
+      (
+        await http()
+          .get(A(`/seasons/${id}/committees`))
+          .set(bearer(president))
+          .expect(200)
+      ).body as SeasonCommittees;
+    const GAME = {
+      name: 'Game Dev',
+      track: 'technical',
+      icon: 'gamepad',
+      description: 'Make games.',
+      tasks: ['Unity', 'Godot'],
+    };
+
+    it('requires committees.manage', async () => {
+      const role = (
+        await http()
+          .post('/api/roles')
+          .set(bearer(president))
+          .send({ name: 'Viewer Only', permissions: ['members.view'] })
+          .expect(201)
+      ).body as { id: string };
+      const viewer = await inviteAndJoin(president, 'viewer-c@test.dev', [
+        role.id,
+      ]);
+      await http()
+        .get(A('/committees/seasons'))
+        .set(bearer(viewer))
+        .expect(403);
+      const s28 = await seasonOf(28);
+      await http()
+        .post(A(`/seasons/${s28.id}/committees`))
+        .set(bearer(viewer))
+        .send(GAME)
+        .expect(403);
+    });
+
+    it("manages a season's committees", async () => {
+      const s29 = (
+        await http()
+          .post(A('/seasons'))
+          .set(bearer(president))
+          .send({ number: 29 })
+          .expect(201)
+      ).body as AdminSeason;
+      const game = (
+        await http()
+          .post(A(`/seasons/${s29.id}/committees`))
+          .set(bearer(president))
+          .send(GAME)
+          .expect(201)
+      ).body as Committee;
+      const renamed = (
+        await http()
+          .patch(A(`/committees/${game.id}`))
+          .set(bearer(president))
+          .send({ name: 'Game Development' })
+          .expect(200)
+      ).body as Committee;
+      expect(renamed).toMatchObject({
+        name: 'Game Development',
+        icon: 'gamepad',
+      });
+      const robotics = (
+        await http()
+          .post(A(`/seasons/${s29.id}/committees`))
+          .set(bearer(president))
+          .send({ ...GAME, name: 'Robotics', icon: 'cpu' })
+          .expect(201)
+      ).body as Committee;
+      await http()
+        .post(A(`/seasons/${s29.id}/committees`))
+        .set(bearer(president))
+        .send({ ...GAME, name: 'HR Team', track: 'non_technical' })
+        .expect(201);
+      const move = (id: string, direction: string) =>
+        http()
+          .post(A(`/committees/${id}/move`))
+          .set(bearer(president))
+          .send({ direction })
+          .expect(200);
+      await move(robotics.id, 'up');
+      expect((await listOf(s29.id)).committees.map((c) => c.name)).toEqual([
+        'Robotics',
+        'Game Development',
+        'HR Team',
+      ]);
+      await move(robotics.id, 'up');
+      await move((await listOf(s29.id)).committees[1].id, 'down');
+      expect((await listOf(s29.id)).committees.map((c) => c.name)).toEqual([
+        'Robotics',
+        'Game Development',
+        'HR Team',
+      ]);
+      await http()
+        .post(A(`/seasons/${s29.id}/committees`))
+        .set(bearer(president))
+        .send({ ...GAME, name: 'Rockets', icon: 'rocket' })
+        .expect(400);
+      await http()
+        .post(A(`/seasons/${s29.id}/committees`))
+        .set(bearer(president))
+        .send({
+          ...GAME,
+          name: 'Too Busy',
+          tasks: Array.from({ length: 13 }, (_, i) => `Task ${i}`),
+        })
+        .expect(400);
+      const dup = await http()
+        .post(A(`/seasons/${s29.id}/committees`))
+        .set(bearer(president))
+        .send({ ...GAME, name: 'game development' })
+        .expect(409);
+      expect((dup.body as { message: string }).message).toMatch(
+        /already exists in Season 29/,
+      );
+      await http()
+        .delete(A(`/committees/${robotics.id}`))
+        .set(bearer(president))
+        .expect(204);
+      expect((await listOf(s29.id)).committees.map((c) => c.name)).toEqual([
+        'Game Development',
+        'HR Team',
+      ]);
+    });
+
+    it('copies from an earlier season', async () => {
+      const s29 = await seasonOf(29);
+      const list = await listOf(s29.id);
+      expect(list.previous?.number).toBe(28);
+      const s26 = await seasonOf(26);
+      const marketing = (await listOf(s26.id)).committees.find(
+        (c) => c.name === 'Marketing',
+      )!;
+      const copy = (
+        await http()
+          .post(A(`/seasons/${s29.id}/committees/copy`))
+          .set(bearer(president))
+          .send({ committeeId: marketing.id, name: 'Marketing & Content' })
+          .expect(201)
+      ).body as Committee;
+      expect(copy).toMatchObject({
+        name: 'Marketing & Content',
+        track: marketing.track,
+        icon: marketing.icon,
+        description: marketing.description,
+        tasks: marketing.tasks,
+      });
+      await http()
+        .post(A(`/seasons/${s29.id}/committees/copy`))
+        .set(bearer(president))
+        .send({ committeeId: marketing.id })
+        .expect(201);
+      await http()
+        .post(A(`/seasons/${s29.id}/committees/copy`))
+        .set(bearer(president))
+        .send({ committeeId: marketing.id })
+        .expect(409);
+      // into an archived season, or from a later season: refused
+      await http()
+        .post(A(`/seasons/${s26.id}/committees/copy`))
+        .set(bearer(president))
+        .send({ committeeId: copy.id })
+        .expect(400);
+      const later = await http()
+        .post(A(`/seasons/${(await seasonOf(28)).id}/committees/copy`))
+        .set(bearer(president))
+        .send({ committeeId: copy.id })
+        .expect(400);
+      expect((later.body as { message: string }).message).toMatch(
+        /earlier season/,
+      );
+    });
+
+    it('refuses edits to archived seasons', async () => {
+      const s26 = await seasonOf(26);
+      const first = (await listOf(s26.id)).committees[0];
+      const r = await http()
+        .patch(A(`/committees/${first.id}`))
+        .set(bearer(president))
+        .send({ name: 'Changed' })
+        .expect(400);
+      expect((r.body as { message: string }).message).toMatch(/archived/);
+      await http()
+        .delete(A(`/committees/${first.id}`))
+        .set(bearer(president))
+        .expect(400);
+    });
+
     it('adds the committees permission', async () => {
       const perms = (
         await http().get('/api/permissions').set(bearer(president)).expect(200)

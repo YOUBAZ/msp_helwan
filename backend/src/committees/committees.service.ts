@@ -1,7 +1,15 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { asc, eq, ne } from 'drizzle-orm';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { and, asc, desc, eq, lt, ne } from 'drizzle-orm';
+import { uniqueViolation } from '../access/roles.service';
 import { DB, type Database } from '../db/database';
+import type { Tx } from '../db/reorder';
 import { committees, seasons } from '../db/schema';
+import type { CommitteeDto, UpdateCommitteeDto } from './dto';
 import type { Track } from './icons';
 import { pickSeasons } from './pick-seasons';
 
@@ -93,4 +101,186 @@ export class CommitteesService {
       fallback: false,
     };
   }
+
+  // ---------- Managing (committees.manage) ----------
+
+  async adminSeasons() {
+    const rows = await this.db
+      .select()
+      .from(seasons)
+      .orderBy(desc(seasons.number));
+    return rows.map(seasonInfo);
+  }
+
+  /** A season's committees plus the season before it, for "copy from". */
+  async adminSeason(seasonId: string) {
+    const season = await this.season(seasonId);
+    const [previous] = await this.db
+      .select()
+      .from(seasons)
+      .where(lt(seasons.number, season.number))
+      .orderBy(desc(seasons.number))
+      .limit(1);
+    return {
+      season: seasonInfo(season),
+      committees: await this.ofSeason(season.id),
+      previous: previous ? seasonInfo(previous) : null,
+      previousCommittees: previous ? await this.ofSeason(previous.id) : [],
+    };
+  }
+
+  async create(seasonId: string, dto: CommitteeDto): Promise<Committee> {
+    const season = await this.editableSeason(seasonId);
+    return this.insert(season, dto);
+  }
+
+  async copy(seasonId: string, committeeId: string, name?: string) {
+    const target = await this.editableSeason(seasonId);
+    const src = await this.row(committeeId);
+    const from = await this.season(src.seasonId);
+    if (from.number >= target.number) {
+      throw new BadRequestException(
+        'You can only copy from an earlier season.',
+      );
+    }
+    return this.insert(target, {
+      name: name ?? src.name,
+      track: src.track,
+      icon: src.icon,
+      description: src.description,
+      tasks: src.tasks,
+    });
+  }
+
+  async update(id: string, dto: UpdateCommitteeDto): Promise<Committee> {
+    const c = await this.row(id);
+    const season = await this.editableSeason(c.seasonId);
+    const sortOrder =
+      dto.track && dto.track !== c.track
+        ? (await this.lastOrder(this.db, season.id, dto.track)) + 1
+        : undefined;
+    try {
+      const [updated] = await this.db
+        .update(committees)
+        .set({ ...dto, sortOrder })
+        .where(eq(committees.id, id))
+        .returning();
+      return toCommittee(updated);
+    } catch (err) {
+      throw uniqueViolation(err, duplicateName(season.name));
+    }
+  }
+
+  async remove(id: string) {
+    const c = await this.row(id);
+    await this.editableSeason(c.seasonId);
+    await this.db.delete(committees).where(eq(committees.id, id));
+  }
+
+  /** Swap with the neighbour in the same track; at either end it's a no-op. */
+  async move(id: string, direction: 'up' | 'down'): Promise<Committee[]> {
+    const c = await this.row(id);
+    await this.editableSeason(c.seasonId);
+    await this.db.transaction(async (tx) => {
+      const list = (
+        await tx
+          .select()
+          .from(committees)
+          .where(
+            and(
+              eq(committees.seasonId, c.seasonId),
+              eq(committees.track, c.track),
+            ),
+          )
+          .for('update')
+      ).sort(byTrackThenOrder);
+      const i = list.findIndex((x) => x.id === id);
+      const j = direction === 'up' ? i - 1 : i + 1;
+      if (i < 0 || j < 0 || j >= list.length) return;
+      [list[i], list[j]] = [list[j], list[i]];
+      // Rewrite 0..n so gaps or ties from earlier edits can't confuse order.
+      for (const [k, x] of list.entries()) {
+        if (x.sortOrder !== k) {
+          await tx
+            .update(committees)
+            .set({ sortOrder: k })
+            .where(eq(committees.id, x.id));
+        }
+      }
+    });
+    return this.ofSeason(c.seasonId);
+  }
+
+  private async insert(
+    season: SeasonRow,
+    dto: CommitteeDto,
+  ): Promise<Committee> {
+    try {
+      return await this.db.transaction(async (tx) => {
+        const [created] = await tx
+          .insert(committees)
+          .values({
+            seasonId: season.id,
+            name: dto.name,
+            track: dto.track,
+            icon: dto.icon,
+            description: dto.description,
+            tasks: dto.tasks,
+            sortOrder: (await this.lastOrder(tx, season.id, dto.track)) + 1,
+          })
+          .returning();
+        return toCommittee(created);
+      });
+    } catch (err) {
+      throw uniqueViolation(err, duplicateName(season.name));
+    }
+  }
+
+  private async lastOrder(db: Database | Tx, seasonId: string, track: Track) {
+    const rows = await db
+      .select({ o: committees.sortOrder })
+      .from(committees)
+      .where(
+        and(eq(committees.seasonId, seasonId), eq(committees.track, track)),
+      );
+    return rows.reduce((m, r) => Math.max(m, r.o), -1);
+  }
+
+  private async row(id: string) {
+    const [c] = await this.db
+      .select()
+      .from(committees)
+      .where(eq(committees.id, id));
+    if (!c) throw new NotFoundException('Committee not found.');
+    return c;
+  }
+
+  private async season(id: string) {
+    const [s] = await this.db.select().from(seasons).where(eq(seasons.id, id));
+    if (!s) throw new NotFoundException('Season not found.');
+    return s;
+  }
+
+  /** Archived seasons are kept as they were (same rule as the hierarchy). */
+  private async editableSeason(id: string) {
+    const s = await this.season(id);
+    if (s.status === 'archived') {
+      throw new BadRequestException(
+        `${s.name} is archived and can't be changed.`,
+      );
+    }
+    return s;
+  }
 }
+
+type SeasonRow = typeof seasons.$inferSelect;
+
+const seasonInfo = (s: SeasonRow) => ({
+  id: s.id,
+  number: s.number,
+  name: s.name,
+  status: s.status,
+});
+
+const duplicateName = (season: string) =>
+  `A committee with this name already exists in ${season}.`;
