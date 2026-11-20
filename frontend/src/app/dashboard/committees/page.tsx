@@ -76,20 +76,32 @@ export default function CommitteesAdminPage() {
 
   if (!allowed) return <Empty text="You don't have permission to manage committees." />;
   if (!seasons) return error ? <Empty text={error} /> : null;
+  // Committees go into a draft or current season; archived ones are read-only.
+  const nothingEditable = !seasons.some((s) => s.status !== "archived");
+  const nextNumber = seasons.length ? Math.max(...seasons.map((s) => s.number)) + 1 : null;
+  const nextStep = nothingEditable && (
+    <Card className="p-6 mb-6 text-sm text-slate-700 space-y-2 border-l-8 border-orange-600">
+      <p className="font-black text-blue-900">
+        {seasons.length === 0 ? "There are no seasons yet." : "There's no season to fill in yet."}
+      </p>
+      <p>
+        Committees belong to a season. Create {nextNumber ? `Season ${nextNumber}` : "the new season"} first (a draft is
+        fine, it stays hidden until published), then come back here to add committees or copy last season&apos;s.
+      </p>
+      {can("seasons.manage") ? (
+        <Link href="/dashboard/hierarchy" className="inline-block font-black text-blue-900 underline">
+          Create the new season in Team Hierarchy
+        </Link>
+      ) : (
+        <p className="font-bold">Ask the President to create the new season in Team Hierarchy.</p>
+      )}
+    </Card>
+  );
   if (seasons.length === 0) {
     return (
       <>
         <PageTitle eyebrow="Committees page" title="Committees" />
-        <Card className="p-8 text-sm text-slate-600 space-y-3">
-          <p>There are no seasons yet. Committees belong to a season.</p>
-          {can("seasons.manage") ? (
-            <Link href="/dashboard/hierarchy" className="font-black text-blue-900 underline">
-              Create a season in Team Hierarchy
-            </Link>
-          ) : (
-            <p>Ask the President to create the season in Team Hierarchy.</p>
-          )}
-        </Card>
+        {nextStep}
       </>
     );
   }
@@ -136,7 +148,8 @@ export default function CommitteesAdminPage() {
           <span className="text-xs text-slate-500 pb-3">Drafts aren&apos;t public until the season is published.</span>
         )}
       </div>
-      {readOnly && (
+      {nextStep}
+      {readOnly && !nothingEditable && (
         <p className="mb-6 p-4 rounded-2xl bg-orange-50 border border-orange-200 text-orange-800 text-sm font-bold">
           {season.name} is archived, so its committees can&apos;t be changed. Copy the ones that continue into the new
           season instead.

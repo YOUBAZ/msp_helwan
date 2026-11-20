@@ -182,7 +182,7 @@ export default function HierarchyEditorPage() {
                 <Button
                   variant="danger"
                   onClick={() =>
-                    confirm(`Delete the draft ${season.name}? This can't be undone.`) &&
+                    confirm(`Delete the draft ${season.name}? Its team hierarchy and its committees will be deleted too. This can't be undone.`) &&
                     void act(async () => {
                       await call(`/admin/seasons/${season.id}`, { method: "DELETE" });
                       setSelected(null);

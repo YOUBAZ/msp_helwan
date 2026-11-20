@@ -127,7 +127,7 @@ CREATE INDEX hierarchy_members_position_idx ON hierarchy_members(position_id);
 CREATE UNIQUE INDEX hierarchy_members_unique_user ON hierarchy_members(position_id, user_id);
 
 INSERT INTO seasons (id, number, name, status, published_at) VALUES
-  ('00000000-0000-4000-8000-000000000026'::uuid, 26, 'Season 26', 'archived', now());
+  ('00000000-0000-4000-8000-000000000026', 26, 'Season 26', 'archived', now());
 
 INSERT INTO hierarchy_positions (id, season_id, parent_id, title, sort_order) VALUES
   ('00000000-0000-4000-8026-000000000001', '00000000-0000-4000-8000-000000000026', NULL, 'President', 0),
