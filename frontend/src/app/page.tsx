@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { Award, Lock, ShieldCheck, Users } from "lucide-react";
 import { stats } from "@/data/site";
 import ContactList from "@/components/ContactList";
@@ -16,10 +17,18 @@ export default function HomePage() {
   return (
     <>
       {/* Hero */}
-      <section
-        className="relative min-h-[90vh] flex items-center text-white bg-cover bg-fixed bg-center"
-        style={{ backgroundImage: "url(/images/hero-bg.jpeg)" }}
-      >
+      <section className="relative min-h-[90vh] flex items-center text-white overflow-hidden">
+        {/* The hero is the LCP element. As a CSS background it was discovered late,
+            never prioritised and always full size; next/image fixes all three. */}
+        <Image
+          src="/images/hero-bg.jpeg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          quality={70}
+          className="object-cover object-center"
+        />
         <div className="absolute inset-0 bg-gradient-to-r from-blue-900 via-blue-900/80 to-transparent" />
         <div className="relative container mx-auto px-6 z-10">
           <div className="max-w-3xl">
@@ -71,10 +80,12 @@ export default function HomePage() {
             <div className="lg:w-1/2 relative">
               <div className="absolute -top-10 -left-10 w-40 h-40 bg-orange-100 rounded-full mix-blend-multiply filter blur-xl opacity-70" />
               <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-blue-100 rounded-full mix-blend-multiply filter blur-xl opacity-70" />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <Image
                 src="/images/about.jpeg"
                 alt="MSP Collaboration"
+                width={1536}
+                height={1024}
+                sizes="(min-width: 1024px) 50vw, 100vw"
                 className="relative rounded-[2.5rem] shadow-2xl border-8 border-white hover:scale-105 transition-transform duration-500"
               />
             </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -36,9 +37,10 @@ export default function Header() {
         <div className="flex justify-between items-center">
           <Link href="/" className="flex items-center gap-3 cursor-pointer group">
             <div className="relative">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <Image
                 src="/images/logo.jpeg"
+                width={40}
+                height={40}
                 alt={`${site.fullName} logo`}
                 className="h-10 w-10 rounded-xl object-cover transform group-hover:rotate-12 transition-transform shadow-md"
               />
