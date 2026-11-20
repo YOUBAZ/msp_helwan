@@ -133,6 +133,20 @@ export const seasons = pgTable('seasons', {
   createdAt: createdAt(),
 });
 
+export const committees = pgTable('committees', {
+  id: id(),
+  seasonId: uuid('season_id')
+    .notNull()
+    .references(() => seasons.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  track: text('track').$type<'technical' | 'non_technical'>().notNull(),
+  icon: text('icon').notNull(),
+  description: text('description').notNull().default(''),
+  tasks: jsonb('tasks').$type<string[]>().notNull().default([]),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: createdAt(),
+});
+
 /** A position in a season's hierarchy (tree via parentId). */
 export const hierarchyPositions = pgTable('hierarchy_positions', {
   id: id(),

@@ -2058,4 +2058,64 @@ describe('MSP Tech Club API (e2e)', () => {
       );
     });
   });
+
+  describe('committees', () => {
+    type Committee = {
+      id: string;
+      name: string;
+      track: 'technical' | 'non_technical';
+      icon: string;
+      description: string;
+      tasks: string[];
+    };
+    type View = {
+      seasons: { number: number; name: string }[];
+      season: { number: number; name: string } | null;
+      committees: Committee[];
+      fallback: boolean;
+    };
+    const view = async (q = '') =>
+      (await http().get(`/api/committees${q}`).expect(200)).body as View;
+
+    it("seeds last season's 14 committees", async () => {
+      const v = await view('?season=26');
+      expect(v.committees).toHaveLength(14);
+      expect(v.committees[0]).toMatchObject({
+        name: 'AI & Data Science',
+        track: 'technical',
+        icon: 'brain',
+      });
+      expect(v.committees.map((c) => c.track)).toEqual([
+        ...Array<string>(8).fill('technical'),
+        ...Array<string>(6).fill('non_technical'),
+      ]);
+      expect(v.committees[0].tasks).toHaveLength(4);
+    });
+
+    it('falls back to the previous season while the current one is empty', async () => {
+      const v = await view();
+      expect(v.season?.number).toBe(26);
+      expect(v.fallback).toBe(true);
+      expect(v.seasons.map((s) => s.number)).toEqual([27, 26]);
+      const now = await view('?season=27');
+      expect(now.committees).toEqual([]);
+      expect(now.fallback).toBe(false);
+    });
+
+    it('hides draft seasons', async () => {
+      await http()
+        .post('/api/admin/seasons')
+        .set(bearer(president))
+        .send({ number: 28 })
+        .expect(201);
+      await http().get('/api/committees?season=28').expect(404);
+    });
+
+    it('adds the committees permission', async () => {
+      const perms = (
+        await http().get('/api/permissions').set(bearer(president)).expect(200)
+      ).body as { key: string }[];
+      expect(perms.map((p) => p.key)).toContain('committees.manage');
+    });
+  });
 });

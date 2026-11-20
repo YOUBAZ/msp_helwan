@@ -4,7 +4,7 @@ Date: 2026-11-20 · Branch: `feature/committees` · Status: approved in conversa
 
 ## Intent
 
-The Committees page is hard-coded in `frontend/src/data/committees.ts` (15 committees). Committees change
+The Committees page is hard-coded in `frontend/src/data/committees.ts` (14 committees). Committees change
 from season to season, so the President (or anyone given the new permission) should manage each season's
 committees from the dashboard, and visitors should see this season's committees and last season's.
 
@@ -25,7 +25,7 @@ committees from the dashboard, and visitors should see this season's committees 
 - Public `/committees`: shows the **current season** (status `current`, else the newest non-draft season)
   and a switch to the **previous** non-draft season. If the current season has no committees yet, the page
   opens on the previous season with a note "Season N's committees are coming soon". Draft seasons never show.
-- Seed (decided: option A): today's 15 committees go into **Season 26** (archived) in their current order
+- Seed (decided: option A): today's 14 committees go into **Season 26** (archived) in their current order
   and groups. Season 27 starts empty; the President copies the ones that continue.
 
 ## Non-goals

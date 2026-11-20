@@ -127,7 +127,7 @@ CREATE INDEX hierarchy_members_position_idx ON hierarchy_members(position_id);
 CREATE UNIQUE INDEX hierarchy_members_unique_user ON hierarchy_members(position_id, user_id);
 
 INSERT INTO seasons (id, number, name, status, published_at) VALUES
-  ('00000000-0000-4000-8000-000000000026', 26, 'Season 26', 'archived', now());
+  ('00000000-0000-4000-8000-000000000026'::uuid, 26, 'Season 26', 'archived', now());
 
 INSERT INTO hierarchy_positions (id, season_id, parent_id, title, sort_order) VALUES
   ('00000000-0000-4000-8026-000000000001', '00000000-0000-4000-8000-000000000026', NULL, 'President', 0),
@@ -316,6 +316,44 @@ ALTER TABLE events ADD COLUMN removed_questions jsonb NOT NULL DEFAULT '{}'::jso
 ALTER TABLE event_registrations ADD COLUMN answers jsonb NOT NULL DEFAULT '{}'::jsonb;
 UPDATE event_registrations SET answers = jsonb_build_object('phone', phone, 'faculty', faculty, 'year', year);
 ALTER TABLE event_registrations DROP COLUMN phone, DROP COLUMN faculty, DROP COLUMN year;
+`,
+  },
+  {
+    // Committees per season. Today's committees become Season 26's; the
+    // President copies the ones that continue into the new season.
+    id: '009_committees',
+    sql: `
+CREATE TABLE committees (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  season_id uuid NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  track text NOT NULL,
+  icon text NOT NULL,
+  description text NOT NULL DEFAULT '',
+  tasks jsonb NOT NULL DEFAULT '[]'::jsonb,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX committees_season_name ON committees (season_id, lower(name));
+CREATE INDEX committees_season_idx ON committees (season_id);
+INSERT INTO committees (season_id, name, track, icon, description, tasks, sort_order)
+SELECT v.* FROM (VALUES
+  ('00000000-0000-4000-8000-000000000026'::uuid, 'AI & Data Science', 'technical', 'brain', 'Harnessing the power of data and machine learning to build intelligent systems.', '["Machine Learning Models", "Deep Learning", "Data Analysis", "Neural Networks"]'::jsonb, 0),
+  ('00000000-0000-4000-8000-000000000026'::uuid, 'Front End & UI/UX', 'technical', 'layout', 'Designing and building responsive, high-performance user interfaces with seamless UX.', '["React.js Development", "UI/UX Design Principles", "Responsive Design", "API Integration"]'::jsonb, 1),
+  ('00000000-0000-4000-8000-000000000026'::uuid, 'Back End', 'technical', 'database', 'Powering applications with secure server-side logic and scalable databases.', '["Server-side Logic", "Database Management", "API Security", "Microservices Architecture"]'::jsonb, 2),
+  ('00000000-0000-4000-8000-000000000026'::uuid, 'Software Testing', 'technical', 'shield', 'Ensuring the highest software quality through automated and manual testing.', '["Unit & Integration Testing", "Bug Tracking", "Performance Testing", "QA Automation"]'::jsonb, 3),
+  ('00000000-0000-4000-8000-000000000026'::uuid, 'Native Mobile (Swift/Kotlin)', 'technical', 'smartphone', 'Developing high-quality native iOS and Android apps using modern languages.', '["Swift (iOS Development)", "Kotlin (Android Development)", "Mobile Architecture", "Platform Integration"]'::jsonb, 4),
+  ('00000000-0000-4000-8000-000000000026'::uuid, 'DevOps & Cloud', 'technical', 'cloud', 'Optimizing development lifecycles with cloud infrastructure and automation.', '["CI/CD Pipelines", "Docker & Kubernetes", "Cloud Infrastructure", "Automation Scripts"]'::jsonb, 5),
+  ('00000000-0000-4000-8000-000000000026'::uuid, 'Network & Cyber Security', 'technical', 'lock', 'Securing digital infrastructures and defending against cyber threats.', '["Network Security", "Ethical Hacking", "Vulnerability Assessment", "Data Encryption"]'::jsonb, 6),
+  ('00000000-0000-4000-8000-000000000026'::uuid, 'Problem Solving', 'technical', 'zap', 'Developing advanced algorithmic thinking and competitive programming skills.', '["Data Structures", "Competitive Programming", "Complex Algorithms", "Logical Reasoning"]'::jsonb, 7),
+  ('00000000-0000-4000-8000-000000000026'::uuid, 'HR (Human Resources)', 'non_technical', 'users', 'Managing human capital and fostering a healthy organizational culture within MSP.', '["Recruitment & Onboarding", "Evaluation & Probation", "Attendance & Discipline", "Performance Reviews"]'::jsonb, 0),
+  ('00000000-0000-4000-8000-000000000026'::uuid, 'PR (Public Relations)', 'non_technical', 'megaphone', 'Managing MSP’s reputation, official communication, and representing MSP professionally.', '["Image Management", "External Communication", "CSR Initiatives", "Internal Bonding Events"]'::jsonb, 1),
+  ('00000000-0000-4000-8000-000000000026'::uuid, 'Marketing', 'non_technical', 'trending', 'Executing strategies to promote MSP’s brand and events, focusing on growth and engagement.', '["Campaign Strategies", "Event Promotion", "Audience Research", "Social Media Growth"]'::jsonb, 2),
+  ('00000000-0000-4000-8000-000000000026'::uuid, 'Media', 'non_technical', 'video', 'Responsible for MSP’s visual identity and producing all visual and digital content.', '["Graphic Design", "Video Editing", "Photography Coverage", "Brand Consistency"]'::jsonb, 3),
+  ('00000000-0000-4000-8000-000000000026'::uuid, 'Event Management', 'non_technical', 'calendar', 'Planning, organizing, and executing events from concept to professional completion.', '["Logistics & Venue", "On-ground Operations", "Committee Coordination", "Post-event Evaluation"]'::jsonb, 4),
+  ('00000000-0000-4000-8000-000000000026'::uuid, 'BD (Business Development)', 'non_technical', 'briefcase', 'Growing MSP through strategic partnerships and securing financial or in-kind support.', '["Sponsors & Partners", "Negotiation & Deals", "Budget Planning", "Partner Relationships"]'::jsonb, 5)
+) AS v(season_id, name, track, icon, description, tasks, sort_order)
+WHERE EXISTS (SELECT 1 FROM seasons WHERE id = '00000000-0000-4000-8000-000000000026');
 `,
   },
 ];

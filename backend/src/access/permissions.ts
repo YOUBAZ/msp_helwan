@@ -23,6 +23,11 @@ export const PERMISSIONS = [
     label: "Build and publish each season's team hierarchy (Our Team page)",
   },
   {
+    key: 'committees.manage',
+    group: 'Committees',
+    label: "Manage each season's committees (Committees page)",
+  },
+  {
     key: 'events.manage',
     group: 'Events',
     label:

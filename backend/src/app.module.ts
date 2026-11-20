@@ -5,6 +5,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AccessModule } from './access/access.module';
 import { ContactModule } from './contact/contact.module';
 import { DbModule } from './db/db.module';
+import { CommitteesModule } from './committees/committees.module';
 import { EventsModule } from './events/events.module';
 import { HealthController } from './health/health.controller';
 import { HierarchyModule } from './hierarchy/hierarchy.module';
@@ -30,6 +31,7 @@ import { NewsletterModule } from './newsletter/newsletter.module';
     HierarchyModule,
     MediaModule,
     EventsModule,
+    CommitteesModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
